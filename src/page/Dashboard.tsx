@@ -5,11 +5,13 @@ import TourMap from '../components/TourMap';
 import type { PenginapanItem } from '../components/Penginapan';
 
 import type { RoutePoint } from '../types/tour';
-import itineraryCsv from '../assets/perjalanan.csv?raw';
-import penginapanCsv from '../assets/penginapan.csv?raw';
-import acaraCsv from '../assets/acara.csv?raw';
 
 type CategoryTab = 'travel' | 'hotel' | 'other';
+
+// Ambil URL Google Sheets (CSV) dari environment variables (Vite)
+const GSHEET_PERJALANAN_URL = import.meta.env.VITE_GSHEET_PERJALANAN_CSV;
+const GSHEET_PENGINAPAN_URL = import.meta.env.VITE_GSHEET_PENGINAPAN_CSV;
+const GSHEET_ACARA_URL = import.meta.env.VITE_GSHEET_ACARA_CSV;
 
 const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
@@ -36,68 +38,116 @@ export const Dashboard: React.FC = () => {
   const cardContainerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef<boolean>(false);
 
-  // 1. Parse perjalanan.csv (Menambahkan gmaps & link tiket)
-  useEffect(() => {
-    Papa.parse(itineraryCsv, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const parsedData: (RoutePoint & { gmaps?: string; linkTiket?: string })[] = results.data
-          .filter((row: any) => row.dari && row.lat && row.lng)
-          .map((row: any, idx: number) => ({
-            id: row.id && !isNaN(Number(row.id)) ? Number(row.id) : idx + 1,
-            dari: row.dari,
-            ke: row.ke,
-            tanggal: row.tanggal,
-            berangkat: row.berangkat || undefined,
-            sampai: row.sampai || undefined,
-            transportasi: row.transportasi || undefined,
-            catatanLain: row.catatan || row.aktivitas || undefined,
-            coords: [parseFloat(row.lat), parseFloat(row.lng)],
-            gmaps: row.gmaps || row.link || row.map || undefined,
-            linkTiket: row['link tiket'] || row.tiket || row.link_tiket || undefined,
-          }));
+  // Helper parser koordinat
+  const parseCoords = (r: any): [number, number] | null => {
+    if (r.coords) {
+      const parts = String(r.coords).split(',').map((v) => Number(v.trim()));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return [parts[0], parts[1]];
+      }
+    }
+    const lat = parseFloat(r.lat);
+    const lng = parseFloat(r.lng);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      return [lat, lng];
+    }
+    return null;
+  };
 
-        setRouteList(parsedData);
-      },
-    });
+  // 1. Fetch perjalanan dari Google Sheets
+  useEffect(() => {
+    if (!GSHEET_PERJALANAN_URL) return;
+
+    fetch(GSHEET_PERJALANAN_URL)
+      .then((res) => res.text())
+      .then((csvText) => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const parsedData: (RoutePoint & { gmaps?: string; linkTiket?: string })[] = results.data
+              .map((row: any, idx: number) => {
+                const coords = parseCoords(row);
+                if (!row.dari || !coords) return null;
+
+                return {
+                  id: row.id && !isNaN(Number(row.id)) ? Number(row.id) : idx + 1,
+                  dari: row.dari,
+                  ke: row.ke || '',
+                  tanggal: row.tanggal || '',
+                  berangkat: row.berangkat || undefined,
+                  sampai: row.sampai || undefined,
+                  transportasi: row.transportasi || undefined,
+                  catatanLain: row.catatan || row.aktivitas || undefined,
+                  coords,
+                  gmaps: row.gmaps || row.link || row.map || undefined,
+                  linkTiket: row['link tiket'] || row.tiket || row.link_tiket || undefined,
+                };
+              })
+              .filter((item): item is (RoutePoint & { gmaps?: string; linkTiket?: string }) => item !== null);
+
+            setRouteList(parsedData);
+          },
+        });
+      })
+      .catch((err) => console.error('Gagal memuat data perjalanan:', err));
   }, []);
 
-  // 2. Parse penginapan.csv
+  // 2. Fetch penginapan dari Google Sheets
   useEffect(() => {
-    Papa.parse(penginapanCsv, {
-      header: true,
-      dynamicTyping: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        setHotelList(results.data as PenginapanItem[]);
-      },
-    });
+    if (!GSHEET_PENGINAPAN_URL) return;
+
+    fetch(GSHEET_PENGINAPAN_URL)
+      .then((res) => res.text())
+      .then((csvText) => {
+        Papa.parse(csvText, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            setHotelList(results.data as PenginapanItem[]);
+          },
+        });
+      })
+      .catch((err) => console.error('Gagal memuat data penginapan:', err));
   }, []);
 
-  // 3. Parse acara.csv
+  // 3. Fetch acara dari Google Sheets
   useEffect(() => {
-    Papa.parse(acaraCsv, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const parsedData: (RoutePoint & { gmaps?: string })[] = results.data
-          .filter((row: any) => row.destinasi && row.lat && row.lng)
-          .map((row: any, idx: number) => ({
-            id: row.id && !isNaN(Number(row.id)) ? Number(row.id) : idx + 1000,
-            dari: row.destinasi,
-            ke: row.aktivitas,
-            tanggal: row.tanggal,
-            berangkat: row.mulai || undefined,
-            sampai: row.selesai || undefined,
-            transportasi: row.keterangan || undefined,
-            coords: [parseFloat(row.lat), parseFloat(row.lng)],
-            gmaps: row.gmaps || row.link || row.map || undefined,
-          }));
+    if (!GSHEET_ACARA_URL) return;
 
-        setAcaraList(parsedData);
-      },
-    });
+    fetch(GSHEET_ACARA_URL)
+      .then((res) => res.text())
+      .then((csvText) => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const parsedData: (RoutePoint & { gmaps?: string })[] = results.data
+              .map((row: any, idx: number) => {
+                const coords = parseCoords(row);
+                const destinasi = row.destinasi || row.dari;
+                if (!destinasi || !coords) return null;
+
+                return {
+                  id: row.id && !isNaN(Number(row.id)) ? Number(row.id) : idx + 1000,
+                  dari: destinasi,
+                  ke: row.aktivitas || row.ke || '',
+                  tanggal: row.tanggal || '',
+                  berangkat: row.mulai || row.berangkat || undefined,
+                  sampai: row.selesai || row.sampai || undefined,
+                  transportasi: row.keterangan || row.transportasi || undefined,
+                  coords,
+                  gmaps: row.gmaps || row.link || row.map || undefined,
+                };
+              })
+              .filter((item): item is (RoutePoint & { gmaps?: string }) => item !== null);
+
+            setAcaraList(parsedData);
+          },
+        });
+      })
+      .catch((err) => console.error('Gagal memuat data acara:', err));
   }, []);
 
   const getDayNumber = useCallback((dateStr: string) => {

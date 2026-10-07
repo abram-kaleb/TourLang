@@ -5,14 +5,14 @@ import L from 'leaflet';
 import Papa from 'papaparse';
 
 import type { RoutePoint } from '../types/tour';
-import itineraryCsv from '../assets/perjalanan.csv?raw';
-import penginapanCsv from '../assets/penginapan.csv?raw';
-import acaraCsv from '../assets/acara.csv?raw';
-
 import Perjalanan from './Perjalanan';
 import Penginapan, { type PenginapanItem } from './Penginapan';
 
 const TILE_LAYER_URL = import.meta.env.VITE_MAP_TILE_URL;
+
+const GSHEET_PERJALANAN_URL = import.meta.env.VITE_GSHEET_PERJALANAN_CSV;
+const GSHEET_PENGINAPAN_URL = import.meta.env.VITE_GSHEET_PENGINAPAN_CSV;
+const GSHEET_ACARA_URL = import.meta.env.VITE_GSHEET_ACARA_CSV;
 
 const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
@@ -114,26 +114,21 @@ const MapController: React.FC<{
     }, 320);
 
     const isMobile = window.innerWidth < 768;
-    // Tingkatkan padding bawah untuk HP agar konten peta terdorong ke atas kalender
     const bottomPadding = isMobile && isCalendarOpen ? 360 : 60;
 
     if (focusedRoute && focusedRoute.coords) {
       if (activeSegmentCoords.length > 0) {
-        // Fokus ke segmen garis/rute
         map.fitBounds(L.latLngBounds(activeSegmentCoords), {
           paddingTopLeft: [40, 40],
           paddingBottomRight: [40, bottomPadding],
-          maxZoom: isMobile ? 8 : 9, // Di HP dibuat lebih kecil/luas
+          maxZoom: isMobile ? 8 : 9,
           animate: true,
         });
       } else {
-        // Fokus ke 1 titik lokasi tertentu (misal: Acara / Penginapan / Kota)
-        const targetZoom = isMobile ? 9 : 14; // Zoom level di HP dibuat lebih kecil (misal: 11)
+        const targetZoom = isMobile ? 9 : 14;
 
         if (isMobile && isCalendarOpen) {
-          // Hitung offset Y agar marker bergeser sedikit ke atas (tidak tertutup kalender)
           const targetPoint = map.project(focusedRoute.coords, targetZoom);
-          // 140px menggeser titik tengah viewport ke bawah sehingga marker naik ke atas
           const offsetPoint = L.point(targetPoint.x, targetPoint.y + 140);
           const newCenter = map.unproject(offsetPoint, targetZoom);
 
@@ -143,7 +138,6 @@ const MapController: React.FC<{
         }
       }
     } else if (!focusedRoute && coords.length > 0) {
-      // Tampilan overview seluruh titik
       map.fitBounds(L.latLngBounds(coords), {
         paddingTopLeft: [40, 40],
         paddingBottomRight: [40, bottomPadding],
@@ -179,61 +173,111 @@ export const TourMap: React.FC<MapProps> = ({
   const [routes, setRoutes] = useState<RoutePoint[]>([]);
   const [hotels, setHotels] = useState<PenginapanItem[]>([]);
   const [acaras, setAcaras] = useState<RoutePoint[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // 1. Load perjalanan.csv
+  // Helper untuk parse koordinat dari tuple "lat, lng" atau kolom lat & lng terpisah
+  const parseCoords = (r: any): [number, number] | null => {
+    if (r.coords) {
+      const parts = String(r.coords).split(',').map((v) => Number(v.trim()));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return [parts[0], parts[1]];
+      }
+    }
+    const lat = parseFloat(r.lat);
+    const lng = parseFloat(r.lng);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      return [lat, lng];
+    }
+    return null;
+  };
+
+  // 1. Fetch data Perjalanan dari Google Sheets
   useEffect(() => {
-    Papa.parse(itineraryCsv, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => {
-        const parsed = res.data
-          .filter((r: any) => r.dari && r.lat && r.lng)
-          .map((r: any, idx: number) => ({
-            id: Number(r.id) || idx + 1,
-            dari: r.dari,
-            ke: r.ke,
-            tanggal: r.tanggal,
-            coords: [parseFloat(r.lat), parseFloat(r.lng)] as [number, number],
-          }));
-        setRoutes(parsed);
-      },
-    });
+    if (!GSHEET_PERJALANAN_URL) return;
+
+    fetch(GSHEET_PERJALANAN_URL)
+      .then((res) => res.text())
+      .then((csvText) => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (res) => {
+            const parsed = res.data
+              .map((r: any, idx: number) => {
+                const coords = parseCoords(r);
+                if (!coords) return null;
+                return {
+                  id: Number(r.id) || idx + 1,
+                  dari: r.dari || '',
+                  ke: r.ke || '',
+                  tanggal: r.tanggal || '',
+                  coords,
+                };
+              })
+              .filter((item): item is RoutePoint => item !== null);
+
+            setRoutes(parsed);
+          },
+        });
+      })
+      .catch((err) => console.error('Error fetching perjalanan CSV:', err));
   }, []);
 
-  // 2. Load penginapan.csv
+  // 2. Fetch data Penginapan dari Google Sheets
   useEffect(() => {
-    Papa.parse(penginapanCsv, {
-      header: true,
-      dynamicTyping: true,
-      skipEmptyLines: true,
-      complete: (res) => {
-        setHotels(res.data as PenginapanItem[]);
-      },
-    });
+    if (!GSHEET_PENGINAPAN_URL) return;
+
+    fetch(GSHEET_PENGINAPAN_URL)
+      .then((res) => res.text())
+      .then((csvText) => {
+        Papa.parse(csvText, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: true,
+          complete: (res) => {
+            setHotels(res.data as PenginapanItem[]);
+          },
+        });
+      })
+      .catch((err) => console.error('Error fetching penginapan CSV:', err));
   }, []);
 
-  // 3. Load acara.csv
+  // 3. Fetch data Acara dari Google Sheets
   useEffect(() => {
-    Papa.parse(acaraCsv, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => {
-        const parsed = res.data
-          .filter((r: any) => r.destinasi && r.lat && r.lng)
-          .map((r: any, idx: number) => ({
-            id: r.id && !isNaN(Number(r.id)) ? Number(r.id) : idx + 1000,
-            dari: r.destinasi,
-            ke: r.aktivitas,
-            tanggal: r.tanggal,
-            berangkat: r.mulai || undefined,
-            sampai: r.selesai || undefined,
-            transportasi: r.keterangan || undefined,
-            coords: [parseFloat(r.lat), parseFloat(r.lng)] as [number, number],
-            gmaps: r.gmaps || undefined,
-          }));
-        setAcaras(parsed);
-      },
-    });
+    if (!GSHEET_ACARA_URL) return;
+
+    fetch(GSHEET_ACARA_URL)
+      .then((res) => res.text())
+      .then((csvText) => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (res) => {
+            const parsed = res.data
+              .map((r: any, idx: number) => {
+                const coords = parseCoords(r);
+                if (!coords) return null;
+
+                return {
+                  id: r.id && !isNaN(Number(r.id)) ? Number(r.id) : idx + 1000,
+                  dari: r.destinasi || r.dari || '',
+                  ke: r.aktivitas || r.ke || '',
+                  tanggal: r.tanggal || '',
+                  berangkat: r.mulai || r.berangkat || undefined,
+                  sampai: r.selesai || r.sampai || undefined,
+                  transportasi: r.keterangan || r.transportasi || undefined,
+                  coords,
+                  gmaps: r.gmaps || undefined,
+                };
+              })
+              .filter((item): item is RoutePoint => item !== null);
+
+            setAcaras(parsed);
+            setIsLoading(false);
+          },
+        });
+      })
+      .catch((err) => console.error('Error fetching acara CSV:', err));
   }, []);
 
   const activeRoutes = allRoutes && allRoutes.length > 0 ? allRoutes : routes;
@@ -259,14 +303,14 @@ export const TourMap: React.FC<MapProps> = ({
 
   return (
     <div className="w-full h-full bg-zinc-950">
-     <MapContainer
-  center={[50.8503, 8.3517]}
-  zoom={5}
-  style={{ width: '100%', height: '100%' }}
-  className="bg-zinc-950" // <-- Tambahkan kelas Tailwind ini di sini
-  zoomControl={false}
-  attributionControl={false}
->
+      <MapContainer
+        center={[50.8503, 8.3517]}
+        zoom={5}
+        style={{ width: '100%', height: '100%' }}
+        className="bg-zinc-950"
+        zoomControl={false}
+        attributionControl={false}
+      >
         <MapController
           coords={coords}
           focusedRoute={focusedRoute || null}
@@ -274,10 +318,7 @@ export const TourMap: React.FC<MapProps> = ({
           isCalendarOpen={isCalendarOpen}
         />
 
-<TileLayer 
-  url={TILE_LAYER_URL}
-  keepBuffer={4} // Menyimpan tile cadangan di luar viewport
-/>
+        <TileLayer url={TILE_LAYER_URL} keepBuffer={4} />
 
         {/* TAB PERJALANAN */}
         {activeTab === 'travel' && (
