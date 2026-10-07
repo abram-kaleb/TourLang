@@ -1,66 +1,106 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Polyline, Marker } from 'react-leaflet';
 import * as turf from '@turf/turf';
 import L from 'leaflet';
-import type { RoutePoint } from '../types/tour';
+
+export interface RoutePoint {
+  id: string | number;
+  dari: string;
+  ke: string;
+  tanggal: string;
+  berangkat?: string;
+  sampai?: string;
+  transportasi?: string;
+  lat?: number | string;
+  lng?: number | string;
+  coords?: [number, number];
+  startCoords?: [number, number];
+  endCoords?: [number, number];
+}
 
 interface PerjalananProps {
   routes: RoutePoint[];
   selectedCity?: RoutePoint | null;
   focusedRoute?: RoutePoint | null;
-  isHotelSelected?: boolean; // Props baru untuk mengecek apakah penginapan sedang diklik
+  isHotelSelected?: boolean;
   onSelectCity?: (city: RoutePoint) => void;
   onFocusRoute?: (route: RoutePoint) => void;
 }
 
-// Helper: Membuat rute garis melengkung
+// Helper: Memastikan koordinat valid berupa array [number, number]
+const parseCoords = (coords?: [number, number] | null): [number, number] | null => {
+  if (!coords || !Array.isArray(coords) || coords.length < 2) return null;
+  const lat = Number(coords[0]);
+  const lng = Number(coords[1]);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  return [lat, lng];
+};
+
+// Helper: Membuat rute garis melengkung yang aman
 const createCurvedSegment = (
   start: [number, number],
   end: [number, number],
   curvature = 0.15
 ) => {
-  const line = turf.lineString([[start[1], start[0]], [end[1], end[0]]]);
-  const distance = turf.length(line, { units: 'kilometers' });
+  try {
+    const line = turf.lineString([[start[1], start[0]], [end[1], end[0]]]);
+    const distance = turf.length(line, { units: 'kilometers' });
 
-  if (distance === 0) return { path: [start], midPoint: start, angle: 0 };
+    // Jika jarak sangat dekat (kurang dari 5km), kembalikan garis lurus
+    if (distance < 5) {
+      const angle = turf.bearing(
+        turf.point([start[1], start[0]]),
+        turf.point([end[1], end[0]])
+      );
+      const midPoint: [number, number] = [
+        (start[0] + end[0]) / 2,
+        (start[1] + end[1]) / 2,
+      ];
+      return { path: [start, end], midPoint, angle };
+    }
 
-  const mid = turf.midpoint(
-    turf.point([start[1], start[0]]),
-    turf.point([end[1], end[0]])
-  );
-  const bearing = turf.bearing(
-    turf.point([start[1], start[0]]),
-    turf.point([end[1], end[0]])
-  );
-  const dest = turf.destination(mid, distance * curvature, bearing + 90, {
-    units: 'kilometers',
-  });
+    const mid = turf.midpoint(
+      turf.point([start[1], start[0]]),
+      turf.point([end[1], end[0]])
+    );
+    const bearing = turf.bearing(
+      turf.point([start[1], start[0]]),
+      turf.point([end[1], end[0]])
+    );
+    const dest = turf.destination(mid, distance * curvature, bearing + 90, {
+      units: 'kilometers',
+    });
 
-  const curved = turf.bezierSpline(
-    turf.lineString([
-      [start[1], start[0]],
-      dest.geometry.coordinates,
-      [end[1], end[0]],
-    ]),
-    { resolution: 50, sharpness: 0.85 }
-  );
+    const curved = turf.bezierSpline(
+      turf.lineString([
+        [start[1], start[0]],
+        dest.geometry.coordinates,
+        [end[1], end[0]],
+      ]),
+      { resolution: 30, sharpness: 0.85 }
+    );
 
-  const coords = curved.geometry.coordinates.map(
-    (c) => [c[1], c[0]] as [number, number]
-  );
-  const midIdx = Math.floor(coords.length / 2);
+    const coords = curved.geometry.coordinates.map(
+      (c) => [c[1], c[0]] as [number, number]
+    );
+    const midIdx = Math.floor(coords.length / 2);
 
-  const p1 = turf.point([coords[midIdx - 1][1], coords[midIdx - 1][0]]);
-  const p2 = turf.point([coords[midIdx + 1][1], coords[midIdx + 1][0]]);
-  const angle = turf.bearing(p1, p2);
+    const p1 = turf.point([coords[midIdx - 1][1], coords[midIdx - 1][0]]);
+    const p2 = turf.point([coords[midIdx + 1][1], coords[midIdx + 1][0]]);
+    const angle = turf.bearing(p1, p2);
 
-  return { path: coords, midPoint: coords[midIdx], angle };
+    return { path: coords, midPoint: coords[midIdx], angle };
+  } catch (err) {
+    // Fallback jika terjadi error kalkulasi turf
+    const midPoint: [number, number] = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
+    return { path: [start, end], midPoint, angle: 0 };
+  }
 };
 
-// Helper: Marker Panah
+// Helper: Icon Panah
 const createFlatArrow = (angle: number, isSelected: boolean, opacity = 1) =>
   L.divIcon({
-    className: '',
+    className: 'custom-arrow-icon',
     html: `
       <div style="
         transform: rotate(${angle}deg);
@@ -71,7 +111,7 @@ const createFlatArrow = (angle: number, isSelected: boolean, opacity = 1) =>
         justify-content: center;
         cursor: pointer;
         opacity: ${opacity};
-        transition: opacity 0.3s ease;
+        transition: opacity 0.2s ease;
       ">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="${isSelected ? '#ffffff' : '#facc15'}">
           <path d="M12 2L22 22L12 17L2 22L12 2Z"/>
@@ -90,27 +130,53 @@ export const Perjalanan: React.FC<PerjalananProps> = ({
   onSelectCity,
   onFocusRoute,
 }) => {
-  // Sembunyikan seluruh garis rute & panah jika penginapan sedang diklik/aktif
-  if (isHotelSelected) {
+  if (isHotelSelected || !Array.isArray(routes) || routes.length === 0) {
     return null;
   }
 
   const activeFocus = focusedRoute || selectedCity;
-  const segments = [];
 
-  for (let i = 0; i < routes.length - 1; i++) {
-    const route = routes[i];
-    const nextRoute = routes[i + 1];
-    const curvature = i % 2 === 0 ? 0.12 : -0.12;
+  // Menggunakan useMemo agar segmen kurva tidak dihitung ulang setiap kali re-render jika `routes` tidak berubah
+  const segments = useMemo(() => {
+    const list: Array<{
+      path: [number, number][];
+      midPoint: [number, number];
+      angle: number;
+      route: RoutePoint;
+    }> = [];
 
-    const { path, midPoint, angle } = createCurvedSegment(
-      route.coords,
-      nextRoute.coords,
-      curvature
-    );
+    for (let i = 0; i < routes.length; i++) {
+      const route = routes[i];
 
-    segments.push({ path, midPoint, angle, route });
-  }
+      // OPSI A: Jika 1 Leg menggunakan startCoords & endCoords pada route yang sama
+      let startCoords = parseCoords(route.startCoords);
+      let endCoords = parseCoords(route.endCoords);
+
+      // OPSI B: Fallback jika rute menggunakan urutan array routes[i] ke routes[i+1]
+      if (!startCoords || !endCoords) {
+        if (i < routes.length - 1) {
+          const nextRoute = routes[i + 1];
+          const currCoords = parseCoords(route.coords) || [Number(route.lat), Number(route.lng)];
+          const nextCoords = parseCoords(nextRoute.coords) || [Number(nextRoute.lat), Number(nextRoute.lng)];
+
+          if (!isNaN(currCoords[0]) && !isNaN(nextCoords[0])) {
+            startCoords = currCoords as [number, number];
+            endCoords = nextCoords as [number, number];
+          }
+        }
+      }
+
+      if (!startCoords || !endCoords) continue;
+      if (startCoords[0] === endCoords[0] && startCoords[1] === endCoords[1]) continue;
+
+      const curvature = i % 2 === 0 ? 0.12 : -0.12;
+      const { path, midPoint, angle } = createCurvedSegment(startCoords, endCoords, curvature);
+
+      list.push({ path, midPoint, angle, route });
+    }
+
+    return list;
+  }, [routes]);
 
   return (
     <>
@@ -119,9 +185,9 @@ export const Perjalanan: React.FC<PerjalananProps> = ({
         const isSelected = selectedCity?.id === route.id;
         const isActive = isFocused || isSelected;
 
-        let opacity = 0.5;
+        let opacity = 0.6;
         if (activeFocus) {
-          opacity = isActive ? 1 : 0.15;
+          opacity = isActive ? 1 : 0.2;
         }
 
         const handleClick = () => {
@@ -130,15 +196,15 @@ export const Perjalanan: React.FC<PerjalananProps> = ({
         };
 
         return (
-          <React.Fragment key={idx}>
-            {/* Invisible Hit Area Polyline */}
+          <React.Fragment key={route.id || idx}>
+            {/* Hit Area Luas (Memudahkan Sentuhan pada Layar Mobile) */}
             <Polyline
               positions={path}
               eventHandlers={{ click: handleClick }}
-              pathOptions={{ color: 'transparent', weight: 16 }}
+              pathOptions={{ color: 'transparent', weight: 20 }}
             />
 
-            {/* Visible Polyline */}
+            {/* Garis Rute Utama */}
             <Polyline
               positions={path}
               eventHandlers={{ click: handleClick }}
@@ -146,11 +212,11 @@ export const Perjalanan: React.FC<PerjalananProps> = ({
                 color: isActive ? '#facc15' : '#a1a1aa',
                 weight: isActive ? 4 : 2,
                 opacity,
-                dashArray: isActive ? undefined : '4, 4',
+                dashArray: isActive ? undefined : '5, 5',
               }}
             />
 
-            {/* Marker Panah */}
+            {/* Marker Panah Arah */}
             <Marker
               position={midPoint}
               icon={createFlatArrow(angle, isActive, opacity)}
