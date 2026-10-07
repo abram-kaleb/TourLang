@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Papa from 'papaparse';
 import TourMap from '../components/TourMap';
 import type { PenginapanItem } from '../components/Penginapan';
@@ -14,6 +15,9 @@ const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
 
 export const Dashboard: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get('focusId');
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<RoutePoint | null>(null);
   const [focusedRoute, setFocusedRoute] = useState<RoutePoint | null>(null);
@@ -124,8 +128,92 @@ export const Dashboard: React.FC = () => {
     }
   }, []);
 
+  // Navigasi via Tab
+  const handleTabClick = useCallback((tab: CategoryTab) => {
+    setActiveTab(tab);
+    const container = cardContainerRef.current;
+    if (!container) return;
+
+    const tabs: CategoryTab[] = ['travel', 'hotel', 'other'];
+    const index = tabs.indexOf(tab);
+
+    isProgrammaticScroll.current = true;
+    container.scrollTo({
+      left: index * container.clientWidth,
+      behavior: 'smooth',
+    });
+
+    setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 350);
+  }, []);
+
+  // Sinkronisasi posisi scroll container setiap kali activeTab atau selectedDate berubah
   useEffect(() => {
-    if (isCalendarOpen && routeList.length > 0) {
+    if (!cardContainerRef.current) return;
+    const container = cardContainerRef.current;
+    const tabs: CategoryTab[] = ['travel', 'hotel', 'other'];
+    const index = tabs.indexOf(activeTab);
+
+    isProgrammaticScroll.current = true;
+    container.scrollLeft = index * container.clientWidth;
+
+    const timer = setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [activeTab, selectedDate]);
+
+  // Handler auto-focus saat URL mengandung focusId (misal: travel-0-11/6/2026)
+  useEffect(() => {
+    if (!focusId || (routeList.length === 0 && hotelList.length === 0 && acaraList.length === 0)) {
+      return;
+    }
+
+    const [type, idxStr, dateStr] = focusId.split('-');
+    const idx = parseInt(idxStr, 10);
+
+    setIsCalendarOpen(true);
+
+    if (type === 'travel' && routeList[idx]) {
+      const item = routeList[idx];
+      setSelectedDate(item.tanggal);
+      setSelectedCity(item);
+      setFocusedRoute(item);
+      handleTabClick('travel');
+    } else if (type === 'hotel' && hotelList[idx]) {
+      const hotel = hotelList[idx];
+      const hotelPoint: RoutePoint & { isHotelActive: boolean } = {
+        id: hotel.id,
+        dari: hotel.nama,
+        ke: hotel.kota,
+        tanggal: hotel.tanggal,
+        coords: [Number(hotel.lat), Number(hotel.lng)],
+        isHotelActive: true,
+      };
+      setSelectedDate(hotel.tanggal);
+      setSelectedCity(hotelPoint);
+      setFocusedRoute(hotelPoint);
+      handleTabClick('hotel');
+    } else if (type === 'acara' && acaraList[idx]) {
+      const item = acaraList[idx];
+      setSelectedDate(item.tanggal);
+      setSelectedCity(item);
+      setFocusedRoute(item);
+      handleTabClick('other');
+    } else if (dateStr) {
+      setSelectedDate(dateStr);
+    }
+
+    const dayNum = dateStr ? getDayNumber(dateStr) : null;
+    if (dayNum) {
+      setTimeout(() => scrollToSelectedDate(dayNum), 150);
+    }
+  }, [focusId, routeList, hotelList, acaraList, getDayNumber, scrollToSelectedDate, handleTabClick]);
+
+  useEffect(() => {
+    if (!focusId && isCalendarOpen && routeList.length > 0 && !selectedDate) {
       const firstAvailableRoute = routeList[0];
       if (firstAvailableRoute && firstAvailableRoute.tanggal) {
         setSelectedDate(firstAvailableRoute.tanggal);
@@ -141,7 +229,7 @@ export const Dashboard: React.FC = () => {
         }
       }
     }
-  }, [isCalendarOpen, routeList, getDayNumber, scrollToSelectedDate]);
+  }, [isCalendarOpen, routeList, getDayNumber, scrollToSelectedDate, focusId, selectedDate]);
 
   // Handle Scroll Swipe Kartu
   const handleCardScroll = () => {
@@ -158,26 +246,6 @@ export const Dashboard: React.FC = () => {
     if (tabs[tabIndex] && tabs[tabIndex] !== activeTab) {
       setActiveTab(tabs[tabIndex]);
     }
-  };
-
-  // Navigasi via Tab
-  const handleTabClick = (tab: CategoryTab) => {
-    setActiveTab(tab);
-    const container = cardContainerRef.current;
-    if (!container) return;
-
-    const tabs: CategoryTab[] = ['travel', 'hotel', 'other'];
-    const index = tabs.indexOf(tab);
-
-    isProgrammaticScroll.current = true;
-    container.scrollTo({
-      left: index * container.clientWidth,
-      behavior: 'smooth',
-    });
-
-    setTimeout(() => {
-      isProgrammaticScroll.current = false;
-    }, 300);
   };
 
   const routesOnSelectedDate = selectedDate
@@ -301,7 +369,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100">
       
-      {/* MAP CONTAINER FULL SCREEN - SELALU RENDERING & DI LATAR BELAKANG */}
+      {/* MAP CONTAINER FULL SCREEN */}
       <main className="absolute inset-0 w-full h-full z-0">
         <TourMap
           selectedCity={selectedCity}
@@ -346,39 +414,39 @@ export const Dashboard: React.FC = () => {
               {selectedDate && (
                 <div className={`bg-zinc-900/80 overflow-hidden ${isFullscreen ? 'flex-1 mb-3 flex flex-col rounded-xl min-h-0' : 'mb-3 rounded-xl'}`}>
                   
-                 {/* NAVIGASI TAB KATEGORI */}
-<div className="flex items-center gap-1 p-2 bg-zinc-950/80 flex-shrink-0">
-  <button
-    onClick={() => handleTabClick('travel')}
-    className={`flex-1 text-xs font-bold py-1.5 px-2 rounded-md transition-all duration-150 active:scale-95 text-center ${
-      activeTab === 'travel'
-        ? 'bg-zinc-100 text-zinc-950 shadow-sm'
-        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
-    }`}
-  >
-    Perjalanan
-  </button>
-  <button
-    onClick={() => handleTabClick('hotel')}
-    className={`flex-1 text-xs font-bold py-1.5 px-2 rounded-md transition-all duration-150 active:scale-95 text-center ${
-      activeTab === 'hotel'
-        ? 'bg-zinc-100 text-zinc-950 shadow-sm'
-        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
-    }`}
-  >
-    Penginapan
-  </button>
-  <button
-    onClick={() => handleTabClick('other')}
-    className={`flex-1 text-xs font-bold py-1.5 px-2 rounded-md transition-all duration-150 active:scale-95 text-center ${
-      activeTab === 'other'
-        ? 'bg-zinc-100 text-zinc-950 shadow-sm'
-        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
-    }`}
-  >
-    Acara
-  </button>
-</div>
+                  {/* NAVIGASI TAB KATEGORI */}
+                  <div className="flex items-center gap-1 p-2 bg-zinc-950/80 flex-shrink-0">
+                    <button
+                      onClick={() => handleTabClick('travel')}
+                      className={`flex-1 text-xs font-bold py-1.5 px-2 rounded-md transition-all duration-150 active:scale-95 text-center ${
+                        activeTab === 'travel'
+                          ? 'bg-zinc-100 text-zinc-950 shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                      }`}
+                    >
+                      Perjalanan
+                    </button>
+                    <button
+                      onClick={() => handleTabClick('hotel')}
+                      className={`flex-1 text-xs font-bold py-1.5 px-2 rounded-md transition-all duration-150 active:scale-95 text-center ${
+                        activeTab === 'hotel'
+                          ? 'bg-zinc-100 text-zinc-950 shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                      }`}
+                    >
+                      Penginapan
+                    </button>
+                    <button
+                      onClick={() => handleTabClick('other')}
+                      className={`flex-1 text-xs font-bold py-1.5 px-2 rounded-md transition-all duration-150 active:scale-95 text-center ${
+                        activeTab === 'other'
+                          ? 'bg-zinc-100 text-zinc-950 shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                      }`}
+                    >
+                      Acara
+                    </button>
+                  </div>
 
                   {/* SWIPEABLE CONTAINER */}
                   <div
@@ -409,50 +477,50 @@ export const Dashboard: React.FC = () => {
                               }`}
                             >
                               <div className="flex items-center justify-between">
-  <h3 className="text-sm font-bold capitalize tracking-wide">
-    {idx + 1}. {capitalize(route.dari)} {route.ke ? `-> ${capitalize(route.ke)}` : ''}
-  </h3>
-  {route.transportasi && (
-    <span className="text-xs font-bold bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded">
-      {route.transportasi}
-    </span>
-  )}
-</div>
+                                <h3 className="text-sm font-bold capitalize tracking-wide">
+                                  {idx + 1}. {capitalize(route.dari)} {route.ke ? `-> ${capitalize(route.ke)}` : ''}
+                                </h3>
+                                {route.transportasi && (
+                                  <span className="text-xs font-bold bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded">
+                                    {route.transportasi}
+                                  </span>
+                                )}
+                              </div>
 
-{(route.berangkat || route.sampai) && (
-  <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
-    <span>
-      {route.berangkat || '--:--'} - {route.sampai || '--:--'}
-    </span>
-  </div>
-)}
+                              {(route.berangkat || route.sampai) && (
+                                <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
+                                  <span>
+                                    {route.berangkat || '--:--'} - {route.sampai || '--:--'}
+                                  </span>
+                                </div>
+                              )}
 
-{(route.gmaps || route.linkTiket) && (
-  <div className="mt-2 flex gap-1.5">
-    {route.gmaps && (
-      <a
-        href={route.gmaps}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex-1 py-1.5 px-2 text-xs font-bold bg-zinc-100 hover:bg-white text-zinc-950 rounded text-center transition-all duration-150 active:scale-95"
-        onClick={(e) => e.stopPropagation()}
-      >
-        Maps ↗
-      </a>
-    )}
-    {route.linkTiket && (
-      <a
-        href={route.linkTiket}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex-1 py-1.5 px-2 text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-center transition-all duration-150 active:scale-95"
-        onClick={(e) => e.stopPropagation()}
-      >
-        Tiket
-      </a>
-    )}
-  </div>
-)}
+                              {(route.gmaps || route.linkTiket) && (
+                                <div className="mt-2 flex gap-1.5">
+                                  {route.gmaps && (
+                                    <a
+                                      href={route.gmaps}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex-1 py-1.5 px-2 text-xs font-bold bg-zinc-100 hover:bg-white text-zinc-950 rounded text-center transition-all duration-150 active:scale-95"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      Maps ↗
+                                    </a>
+                                  )}
+                                  {route.linkTiket && (
+                                    <a
+                                      href={route.linkTiket}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex-1 py-1.5 px-2 text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-center transition-all duration-150 active:scale-95"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      Tiket
+                                    </a>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })

@@ -114,23 +114,39 @@ const MapController: React.FC<{
     }, 320);
 
     const isMobile = window.innerWidth < 768;
-    const bottomPadding = isMobile && isCalendarOpen ? 320 : 60;
+    // Tingkatkan padding bawah untuk HP agar konten peta terdorong ke atas kalender
+    const bottomPadding = isMobile && isCalendarOpen ? 360 : 60;
 
     if (focusedRoute && focusedRoute.coords) {
       if (activeSegmentCoords.length > 0) {
+        // Fokus ke segmen garis/rute
         map.fitBounds(L.latLngBounds(activeSegmentCoords), {
-          paddingTopLeft: [50, 50],
-          paddingBottomRight: [50, bottomPadding],
-          maxZoom: 9,
+          paddingTopLeft: [40, 40],
+          paddingBottomRight: [40, bottomPadding],
+          maxZoom: isMobile ? 8 : 9, // Di HP dibuat lebih kecil/luas
           animate: true,
         });
       } else {
-        map.flyTo(focusedRoute.coords, 14, { animate: true });
+        // Fokus ke 1 titik lokasi tertentu (misal: Acara / Penginapan / Kota)
+        const targetZoom = isMobile ? 9 : 14; // Zoom level di HP dibuat lebih kecil (misal: 11)
+
+        if (isMobile && isCalendarOpen) {
+          // Hitung offset Y agar marker bergeser sedikit ke atas (tidak tertutup kalender)
+          const targetPoint = map.project(focusedRoute.coords, targetZoom);
+          // 140px menggeser titik tengah viewport ke bawah sehingga marker naik ke atas
+          const offsetPoint = L.point(targetPoint.x, targetPoint.y + 140);
+          const newCenter = map.unproject(offsetPoint, targetZoom);
+
+          map.flyTo(newCenter, targetZoom, { animate: true });
+        } else {
+          map.flyTo(focusedRoute.coords, targetZoom, { animate: true });
+        }
       }
     } else if (!focusedRoute && coords.length > 0) {
+      // Tampilan overview seluruh titik
       map.fitBounds(L.latLngBounds(coords), {
-        paddingTopLeft: [50, 50],
-        paddingBottomRight: [50, bottomPadding],
+        paddingTopLeft: [40, 40],
+        paddingBottomRight: [40, bottomPadding],
         animate: true,
       });
     }
@@ -247,8 +263,9 @@ export const TourMap: React.FC<MapProps> = ({
   center={[50.8503, 8.3517]}
   zoom={5}
   style={{ width: '100%', height: '100%' }}
+  className="bg-zinc-950" // <-- Tambahkan kelas Tailwind ini di sini
   zoomControl={false}
-  attributionControl={false} // <-- Tambahkan baris ini
+  attributionControl={false}
 >
         <MapController
           coords={coords}
@@ -257,7 +274,10 @@ export const TourMap: React.FC<MapProps> = ({
           isCalendarOpen={isCalendarOpen}
         />
 
-        <TileLayer url={TILE_LAYER_URL} />
+<TileLayer 
+  url={TILE_LAYER_URL}
+  keepBuffer={4} // Menyimpan tile cadangan di luar viewport
+/>
 
         {/* TAB PERJALANAN */}
         {activeTab === 'travel' && (
