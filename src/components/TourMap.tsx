@@ -7,6 +7,7 @@ import Papa from 'papaparse';
 import type { RoutePoint } from '../types/tour';
 import itineraryCsv from '../assets/perjalanan.csv?raw';
 import penginapanCsv from '../assets/penginapan.csv?raw';
+import acaraCsv from '../assets/acara.csv?raw';
 
 import Perjalanan from './Perjalanan';
 import Penginapan, { type PenginapanItem } from './Penginapan';
@@ -16,7 +17,7 @@ const TILE_LAYER_URL = import.meta.env.VITE_MAP_TILE_URL;
 const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
 
-// Marker Label Nama Kota
+// 1. Marker Label Kota (Perjalanan) - Flat & Clean
 const createCityLabelMarker = (cityName: string, isSelected: boolean, opacity = 1) =>
   L.divIcon({
     className: '',
@@ -24,36 +25,73 @@ const createCityLabelMarker = (cityName: string, isSelected: boolean, opacity = 
       <div style="
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         white-space: nowrap;
         pointer-events: none;
-        transform: translate(-6px, -6px);
+        transform: translate(-4px, -50%);
         opacity: ${opacity};
-        transition: opacity 0.3s ease;
+        transition: opacity 0.2s ease;
       ">
         <div style="
-          width: ${isSelected ? '12px' : '8px'};
-          height: ${isSelected ? '12px' : '8px'};
+          width: ${isSelected ? '8px' : '6px'};
+          height: ${isSelected ? '8px' : '6px'};
           background: ${isSelected ? '#ffffff' : '#a1a1aa'};
-          border: 2px solid #000000;
           border-radius: 50%;
-          box-shadow: 0 0 4px rgba(0,0,0,0.8);
           flex-shrink: 0;
           transition: all 0.2s ease;
         "></div>
 
         <span style="
-          font-family: system-ui, -apple-system, sans-serif;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           font-size: ${isSelected ? '12px' : '11px'};
-          font-weight: ${isSelected ? '800' : '600'};
-          color: ${isSelected ? '#ffffff' : '#d4d4d8'};
-          background: rgba(0, 0, 0, 0.75);
-          padding: 2px 6px;
+          font-weight: ${isSelected ? '700' : '500'};
+          color: ${isSelected ? '#ffffff' : '#a1a1aa'};
+          background: #09090b;
+          padding: 3px 8px;
           border-radius: 4px;
-          border: 1px solid ${isSelected ? '#ffffff' : 'rgba(255,255,255,0.15)'};
-          letter-spacing: 0.3px;
+          letter-spacing: 0.2px;
         ">
           ${capitalize(cityName)}
+        </span>
+      </div>
+    `,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+
+// 2. Marker Label Acara / Event - Flat & Clean
+const createAcaraLabelMarker = (title: string, isSelected: boolean) =>
+  L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        transform: translate(-4px, -50%);
+        cursor: pointer;
+      ">
+        <div style="
+          width: ${isSelected ? '8px' : '6px'};
+          height: ${isSelected ? '8px' : '6px'};
+          background: ${isSelected ? '#ffffff' : '#38bdf8'};
+          border-radius: 50%;
+          flex-shrink: 0;
+          transition: all 0.2s ease;
+        "></div>
+
+        <span style="
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: ${isSelected ? '12px' : '11px'};
+          font-weight: ${isSelected ? '700' : '500'};
+          color: ${isSelected ? '#ffffff' : '#e0f2fe'};
+          background: #09090b;
+          padding: 3px 8px;
+          border-radius: 4px;
+          letter-spacing: 0.2px;
+        ">
+          ${capitalize(title)}
         </span>
       </div>
     `,
@@ -79,7 +117,6 @@ const MapController: React.FC<{
     const bottomPadding = isMobile && isCalendarOpen ? 320 : 60;
 
     if (focusedRoute && focusedRoute.coords) {
-      // Jika yang difokuskan adalah titik spesifik (seperti hotel)
       if (activeSegmentCoords.length > 0) {
         map.fitBounds(L.latLngBounds(activeSegmentCoords), {
           paddingTopLeft: [50, 50],
@@ -110,7 +147,7 @@ interface MapProps {
   onSelectCity?: (city: RoutePoint) => void;
   onFocusRoute?: (city: RoutePoint) => void;
   allRoutes?: RoutePoint[];
-  activeTab?: 'travel' | 'hotel' | 'other'; // Prop untuk memfilter visualisasi
+  activeTab?: 'travel' | 'hotel' | 'other';
   isCalendarOpen?: boolean;
 }
 
@@ -125,8 +162,9 @@ export const TourMap: React.FC<MapProps> = ({
 }) => {
   const [routes, setRoutes] = useState<RoutePoint[]>([]);
   const [hotels, setHotels] = useState<PenginapanItem[]>([]);
+  const [acaras, setAcaras] = useState<RoutePoint[]>([]);
 
-  // Load perjalanan.csv
+  // 1. Load perjalanan.csv
   useEffect(() => {
     Papa.parse(itineraryCsv, {
       header: true,
@@ -146,7 +184,7 @@ export const TourMap: React.FC<MapProps> = ({
     });
   }, []);
 
-  // Load assets/penginapan.csv
+  // 2. Load penginapan.csv
   useEffect(() => {
     Papa.parse(penginapanCsv, {
       header: true,
@@ -158,13 +196,43 @@ export const TourMap: React.FC<MapProps> = ({
     });
   }, []);
 
+  // 3. Load acara.csv
+  useEffect(() => {
+    Papa.parse(acaraCsv, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res) => {
+        const parsed = res.data
+          .filter((r: any) => r.destinasi && r.lat && r.lng)
+          .map((r: any, idx: number) => ({
+            id: r.id && !isNaN(Number(r.id)) ? Number(r.id) : idx + 1000,
+            dari: r.destinasi,
+            ke: r.aktivitas,
+            tanggal: r.tanggal,
+            berangkat: r.mulai || undefined,
+            sampai: r.selesai || undefined,
+            transportasi: r.keterangan || undefined,
+            coords: [parseFloat(r.lat), parseFloat(r.lng)] as [number, number],
+            gmaps: r.gmaps || undefined,
+          }));
+        setAcaras(parsed);
+      },
+    });
+  }, []);
+
   const activeRoutes = allRoutes && allRoutes.length > 0 ? allRoutes : routes;
-  const coords = activeRoutes.map((r) => r.coords);
+
+  let coords: [number, number][] = [];
+  if (activeTab === 'other') {
+    coords = acaras.map((a) => a.coords);
+  } else {
+    coords = activeRoutes.map((r) => r.coords);
+  }
 
   const isHotelSelected = Boolean((selectedCity as any)?.isHotelActive);
 
   let activeSegmentCoords: [number, number][] = [];
-  if (focusedRoute && !isHotelSelected) {
+  if (focusedRoute && !isHotelSelected && activeTab === 'travel') {
     const idx = activeRoutes.findIndex((r) => r.id === focusedRoute.id);
     if (idx !== -1 && idx < activeRoutes.length - 1) {
       activeSegmentCoords = [activeRoutes[idx].coords, activeRoutes[idx + 1].coords];
@@ -174,7 +242,7 @@ export const TourMap: React.FC<MapProps> = ({
   const activeFocus = focusedRoute || selectedCity;
 
   return (
-    <div className="w-full h-full bg-neutral-900">
+    <div className="w-full h-full bg-zinc-950">
       <MapContainer
         center={[50.8503, 8.3517]}
         zoom={5}
@@ -190,10 +258,8 @@ export const TourMap: React.FC<MapProps> = ({
 
         <TileLayer url={TILE_LAYER_URL} />
 
-        {/* ====================================================
-            LOGIKA TAB PERJALANAN (travel / other)
-           ==================================================== */}
-        {(activeTab === 'travel' || activeTab === 'other') && (
+        {/* TAB PERJALANAN */}
+        {activeTab === 'travel' && (
           <>
             <Perjalanan
               routes={activeRoutes}
@@ -204,7 +270,6 @@ export const TourMap: React.FC<MapProps> = ({
               onFocusRoute={onFocusRoute}
             />
 
-            {/* MARKER KOTA (Garis, Arrow, Label Kota) */}
             {activeRoutes.map((item, idx) => {
               const isSelected = selectedCity?.id === item.id;
 
@@ -233,9 +298,7 @@ export const TourMap: React.FC<MapProps> = ({
           </>
         )}
 
-        {/* ====================================================
-            LOGIKA TAB PENGINAPAN (hotel)
-           ==================================================== */}
+        {/* TAB PENGINAPAN */}
         {activeTab === 'hotel' && (
           <Penginapan
             hotels={hotels}
@@ -253,6 +316,29 @@ export const TourMap: React.FC<MapProps> = ({
               onFocusRoute?.(hotelPoint);
             }}
           />
+        )}
+
+        {/* TAB ACARA */}
+        {activeTab === 'other' && (
+          <>
+            {acaras.map((acara) => {
+              const isSelected = selectedCity?.id === acara.id;
+
+              return (
+                <Marker
+                  key={`acara-marker-${acara.id}`}
+                  position={acara.coords}
+                  icon={createAcaraLabelMarker(acara.dari, isSelected)}
+                  eventHandlers={{
+                    click: () => {
+                      onSelectCity?.(acara);
+                      onFocusRoute?.(acara);
+                    },
+                  }}
+                />
+              );
+            })}
+          </>
         )}
       </MapContainer>
     </div>

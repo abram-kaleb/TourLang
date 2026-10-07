@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Papa from 'papaparse';
 import TourMap from '../components/TourMap';
 import type { PenginapanItem } from '../components/Penginapan';
@@ -19,7 +19,7 @@ export const Dashboard: React.FC = () => {
   const [focusedRoute, setFocusedRoute] = useState<RoutePoint | null>(null);
   const [routeList, setRouteList] = useState<RoutePoint[]>([]);
   const [hotelList, setHotelList] = useState<PenginapanItem[]>([]);
-  const [acaraList, setAcaraList] = useState<RoutePoint[]>([]);
+  const [acaraList, setAcaraList] = useState<(RoutePoint & { gmaps?: string })[]>([]);
   const [isCalendarOpen, setIsCalendarOpen] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<CategoryTab>('travel');
@@ -27,6 +27,7 @@ export const Dashboard: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dateButtonRefs = useRef<{ [key: number]: HTMLButtonElement | null }>({});
   const cardContainerRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScroll = useRef<boolean>(false);
 
   // 1. Parse perjalanan.csv
   useEffect(() => {
@@ -65,13 +66,13 @@ export const Dashboard: React.FC = () => {
     });
   }, []);
 
-  // 3. Parse acara.csv
+  // 3. Parse acara.csv (Ditambahkan pemetaan gmaps / link / map)
   useEffect(() => {
     Papa.parse(acaraCsv, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const parsedData: RoutePoint[] = results.data
+        const parsedData: (RoutePoint & { gmaps?: string })[] = results.data
           .filter((row: any) => row.destinasi && row.lat && row.lng)
           .map((row: any, idx: number) => ({
             id: row.id && !isNaN(Number(row.id)) ? Number(row.id) : idx + 1000,
@@ -82,6 +83,7 @@ export const Dashboard: React.FC = () => {
             sampai: row.selesai || undefined,
             transportasi: row.keterangan || undefined,
             coords: [parseFloat(row.lat), parseFloat(row.lng)],
+            gmaps: row.gmaps || row.link || row.map || undefined,
           }));
 
         setAcaraList(parsedData);
@@ -89,7 +91,7 @@ export const Dashboard: React.FC = () => {
     });
   }, []);
 
-  const getDayNumber = (dateStr: string) => {
+  const getDayNumber = useCallback((dateStr: string) => {
     if (!dateStr) return null;
     const parts = dateStr.split(/[/.-]/);
     if (parts.length >= 2) {
@@ -97,9 +99,9 @@ export const Dashboard: React.FC = () => {
       return isNaN(day) ? null : day;
     }
     return null;
-  };
+  }, []);
 
-  const scrollToSelectedDate = (dayNum: number) => {
+  const scrollToSelectedDate = useCallback((dayNum: number) => {
     const container = scrollRef.current;
     const targetButton = dateButtonRefs.current[dayNum];
 
@@ -115,7 +117,7 @@ export const Dashboard: React.FC = () => {
         behavior: 'smooth',
       });
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isCalendarOpen && routeList.length > 0) {
@@ -127,23 +129,26 @@ export const Dashboard: React.FC = () => {
 
         const dayNum = getDayNumber(firstAvailableRoute.tanggal);
         if (dayNum) {
-          setTimeout(() => {
+          const timer = setTimeout(() => {
             scrollToSelectedDate(dayNum);
-          }, 50);
+          }, 100);
+          return () => clearTimeout(timer);
         }
       }
     }
-  }, [isCalendarOpen, routeList]);
+  }, [isCalendarOpen, routeList, getDayNumber, scrollToSelectedDate]);
 
   // Handle Scroll Swipe Kartu
   const handleCardScroll = () => {
+    if (isProgrammaticScroll.current) return;
     const container = cardContainerRef.current;
     if (!container) return;
 
     const scrollLeft = container.scrollLeft;
     const width = container.clientWidth;
-    const tabIndex = Math.round(scrollLeft / width);
+    if (width === 0) return;
 
+    const tabIndex = Math.round(scrollLeft / width);
     const tabs: CategoryTab[] = ['travel', 'hotel', 'other'];
     if (tabs[tabIndex] && tabs[tabIndex] !== activeTab) {
       setActiveTab(tabs[tabIndex]);
@@ -159,10 +164,15 @@ export const Dashboard: React.FC = () => {
     const tabs: CategoryTab[] = ['travel', 'hotel', 'other'];
     const index = tabs.indexOf(tab);
 
+    isProgrammaticScroll.current = true;
     container.scrollTo({
       left: index * container.clientWidth,
-      behavior: 'instant' as ScrollBehavior,
+      behavior: 'smooth',
     });
+
+    setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 300);
   };
 
   const routesOnSelectedDate = selectedDate
@@ -258,7 +268,7 @@ export const Dashboard: React.FC = () => {
 
     return (
       <button
-        key={dayNum}
+        key={`${isMobile ? 'm' : 'd'}-${dayNum}`}
         ref={(el) => {
           if (isMobile) {
             dateButtonRefs.current[dayNum] = el;
@@ -534,6 +544,21 @@ export const Dashboard: React.FC = () => {
                                   {item.transportasi}
                                 </p>
                               )}
+
+                              {/* TOMBOL GMAPS UNTUK ACARA */}
+                              {item.gmaps && (
+                                <div className="mt-2">
+                                  <a
+                                    href={item.gmaps}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-block w-full py-1 px-1.5 text-[9px] font-bold bg-zinc-100 hover:bg-white text-zinc-950 rounded text-center transition-all duration-150 active:scale-95"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Maps ↗
+                                  </a>
+                                </div>
+                              )}
                             </div>
                           );
                         })
@@ -606,7 +631,7 @@ export const Dashboard: React.FC = () => {
         {!isCalendarOpen && (
           <button
             onClick={() => setIsCalendarOpen(true)}
-            className="absolute bottom-3.5 right-4.5 w-10 h-10 bg-zinc-100 text-zinc-950 rounded-full flex items-center justify-center shadow-xl transition-all duration-150 active:scale-90 hover:scale-105 cursor-pointer"
+            className="w-10 h-10 bg-zinc-100 text-zinc-950 rounded-full flex items-center justify-center shadow-xl transition-all duration-150 active:scale-90 hover:scale-105 cursor-pointer"
             aria-label="Buka Kalender"
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
