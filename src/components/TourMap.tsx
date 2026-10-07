@@ -243,12 +243,13 @@ export const TourMap: React.FC<MapProps> = ({
 
   return (
     <div className="w-full h-full bg-zinc-950">
-      <MapContainer
-        center={[50.8503, 8.3517]}
-        zoom={5}
-        style={{ width: '100%', height: '100%' }}
-        zoomControl={false}
-      >
+     <MapContainer
+  center={[50.8503, 8.3517]}
+  zoom={5}
+  style={{ width: '100%', height: '100%' }}
+  zoomControl={false}
+  attributionControl={false} // <-- Tambahkan baris ini
+>
         <MapController
           coords={coords}
           focusedRoute={focusedRoute || null}

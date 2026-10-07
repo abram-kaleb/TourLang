@@ -21,15 +21,34 @@ interface AcaraProps {
   onSelectAcara?: (item: AcaraItem) => void;
 }
 
+// Fungsi helper untuk menyamakan format tanggal (YYYY-MM-DD atau M/D/YYYY ke YYYY-M-D)
+const normalizeDate = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const cleanStr = dateStr.trim();
+  
+  // Jika formatnya M/D/YYYY (contoh: 11/6/2026)
+  if (cleanStr.includes('/')) {
+    const [m, d, y] = cleanStr.split('/');
+    return `${y}-${parseInt(m, 10)}-${parseInt(d, 10)}`;
+  }
+  
+  // Jika formatnya YYYY-MM-DD (contoh: 2026-11-06)
+  if (cleanStr.includes('-')) {
+    const [y, m, d] = cleanStr.split('-');
+    return `${y}-${parseInt(m, 10)}-${parseInt(d, 10)}`;
+  }
+
+  return cleanStr;
+};
+
 export const Acara: React.FC<AcaraProps> = ({ selectedDate, onSelectAcara }) => {
   const [acaraList, setAcaraList] = useState<AcaraItem[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterDate, setFilterDate] = useState<string>('');
 
+  // SINKRONISASI STATE: Selalu perbarui filterDate, termasuk saat selectedDate bernilai null/kosong
   useEffect(() => {
-    if (selectedDate) {
-      setFilterDate(selectedDate);
-    }
+    setFilterDate(selectedDate || '');
   }, [selectedDate]);
 
   useEffect(() => {
@@ -63,7 +82,10 @@ export const Acara: React.FC<AcaraProps> = ({ selectedDate, onSelectAcara }) => 
       item.kota.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.aktivitas.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchDate = filterDate ? item.tanggal === filterDate : true;
+    // PERBANDINGAN TANGGAL: Normalisasi kedua tanggal sebelum membandingkan
+    const matchDate = filterDate
+      ? normalizeDate(item.tanggal) === normalizeDate(filterDate)
+      : true;
 
     return matchSearch && matchDate;
   });
