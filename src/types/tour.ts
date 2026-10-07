@@ -6,5 +6,7 @@ export interface RoutePoint {
   berangkat?: string;
   sampai?: string;
   transportasi?: string;
+  catatanLain?: string;
+  keterangan?: string; // Tambahan opsional untuk acara
   coords: [number, number];
 }

@@ -1,0 +1,16 @@
+id,dari,ke,tanggal,berangkat,sampai,transportasi,lat,lng
+1,frankfurt,hamburg,11/6/2026,5:13,9:29,ICE,50.1109,8.6821
+2,hamburg,rostock,11/6/2026,11:22,13:50,RE,53.5511,9.9937
+3,rostock,wismar,11/7/2026,13:06,14:15,RE,54.0924,12.0991
+4,wismar,rostock,11/7/2026,18:42,19:51,RE,53.8924,11.465
+5,rostock,szczecin,11/8/2026,5:00,8:00,RE / Bus,54.0924,12.0991
+6,szczecin,berlin,11/8/2026,8:15,10:00,RE / RB,53.4285,14.5528
+7,berlin,hannover,11/9/2026,14:00,15:40,ICE,52.52,13.405
+8,hannover,amsterdam,11/10/2026,16:00,17:00 (+1d),IC / DB,52.3759,9.732
+10,amsterdam,brussels,11/13/2026,10:15,12:00,Eurostar,52.3676,4.9041
+11,brussels,paris,11/15/2026,9:30,11:00,Eurostar,50.8503,4.3517
+13,paris,stuttgart,11/18/2026,13:15,16:30,TGV / ICE,48.8566,2.3522
+14,stuttgart,munich,11/21/2026,8:30,10:45,ICE,48.7758,9.1829
+15,munich,innsbruck,11/23/2026,11:00,12:45,EC / ÖBB,48.1351,11.582
+16,innsbruck,zurich,11/25/2026,14:20,18:00,Railjet,47.2692,11.4041
+17,zurich,zurich,11/26/2026,10:00,12:00,Selesai,47.3769,8.5417

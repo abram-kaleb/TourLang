@@ -1,0 +1,21 @@
+id,kota,nama,tanggal,cek in,cek out,gmaps,lat,lng,link tiket
+1,frankfurt,IntercityHotel Frankfurt Hauptbahnhof Süd,11/5/2026,15:00,11:00,https://maps.google.com/?cid=101,50.1054,8.6631,https://tiket.example.com/pdf/101
+2,rostock,Radisson Blu Hotel Rostock,11/6/2026,15:00,11:00,https://maps.google.com/?cid=102,54.0887,12.1384,https://tiket.example.com/pdf/102
+3,rostock,Radisson Blu Hotel Rostock,11/7/2026,15:00,11:00,https://maps.google.com/?cid=102,54.0887,12.1384,https://tiket.example.com/pdf/102
+4,berlin,Motel One Berlin-Hauptbahnhof,11/8/2026,15:00,12:00,https://maps.google.com/?cid=104,52.5255,13.3694,https://tiket.example.com/pdf/104
+5,hannover,DoubleTree by Hilton Hannover Schweizerhof,11/9/2026,15:00,12:00,https://maps.google.com/?cid=105,52.3759,9.7441,https://tiket.example.com/pdf/105
+6,kereta,ICE Night Train (Hannover -> Amsterdam),11/10/2026,22:30,06:15,https://maps.google.com/?cid=106,52.3759,9.7441,https://db.de/ticket/601
+7,amsterdam,CityHub Amsterdam,11/11/2026,15:00,12:00,https://maps.google.com/?cid=107,52.3676,4.8683,https://tiket.example.com/pdf/107
+8,amsterdam,CityHub Amsterdam,11/12/2026,15:00,12:00,https://maps.google.com/?cid=107,52.3676,4.8683,https://tiket.example.com/pdf/107
+9,brussels,Motel One Brussels,11/13/2026,15:00,12:00,https://maps.google.com/?cid=109,50.8480,4.3644,https://tiket.example.com/pdf/109
+10,brussels,Motel One Brussels,11/14/2026,15:00,12:00,https://maps.google.com/?cid=109,50.8480,4.3644,https://tiket.example.com/pdf/109
+11,paris,CitizenM Paris Gare de Lyon,11/15/2026,14:00,11:00,https://maps.google.com/?cid=111,48.8448,2.3732,https://tiket.example.com/pdf/111
+12,kereta,TGV Lyria / Nightjet (Paris -> Stuttgart),11/16/2026,19:15,23:30,https://maps.google.com/?cid=112,48.8448,2.3732,https://sncf.com/ticket/602
+13,stuttgart,Premier Inn Stuttgart City Centre,11/17/2026,15:00,12:00,https://maps.google.com/?cid=113,48.7845,9.1802,https://tiket.example.com/pdf/113
+14,stuttgart,Premier Inn Stuttgart City Centre,11/18/2026,15:00,12:00,https://maps.google.com/?cid=113,48.7845,9.1802,https://tiket.example.com/pdf/113
+15,munich,Eden Hotel Wolff,11/19/2026,15:00,11:00,https://maps.google.com/?cid=115,48.1412,11.5606,https://tiket.example.com/pdf/115
+16,munich,Eden Hotel Wolff,11/20/2026,15:00,11:00,https://maps.google.com/?cid=115,48.1412,11.5606,https://tiket.example.com/pdf/115
+17,innsbruck,Motel One Innsbruck,11/21/2026,15:00,12:00,https://maps.google.com/?cid=117,47.2627,11.4004,https://tiket.example.com/pdf/117
+18,innsbruck,Motel One Innsbruck,11/22/2026,15:00,12:00,https://maps.google.com/?cid=117,47.2627,11.4004,https://tiket.example.com/pdf/117
+19,zurich,Ruby Mimi Hotel Zurich,11/23/2026,15:00,11:00,https://maps.google.com/?cid=119,47.3769,8.5401,https://tiket.example.com/pdf/119
+20,zurich,Ruby Mimi Hotel Zurich,11/24/2026,15:00,11:00,https://maps.google.com/?cid=119,47.3769,8.5401,https://tiket.example.com/pdf/119
