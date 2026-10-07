@@ -173,7 +173,6 @@ export const TourMap: React.FC<MapProps> = ({
   const [routes, setRoutes] = useState<RoutePoint[]>([]);
   const [hotels, setHotels] = useState<PenginapanItem[]>([]);
   const [acaras, setAcaras] = useState<RoutePoint[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Helper untuk parse koordinat dari tuple "lat, lng" atau kolom lat & lng terpisah
   const parseCoords = (r: any): [number, number] | null => {
@@ -203,11 +202,11 @@ export const TourMap: React.FC<MapProps> = ({
           skipEmptyLines: true,
           complete: (res) => {
             const parsed = res.data
-              .map((r: any, idx: number) => {
+              .map((r: any, idx: number): RoutePoint | null => {
                 const coords = parseCoords(r);
                 if (!coords) return null;
                 return {
-                  id: Number(r.id) || idx + 1,
+                  id: r.id ? String(r.id) : `route-${idx + 1}`,
                   dari: r.dari || '',
                   ke: r.ke || '',
                   tanggal: r.tanggal || '',
@@ -254,12 +253,12 @@ export const TourMap: React.FC<MapProps> = ({
           skipEmptyLines: true,
           complete: (res) => {
             const parsed = res.data
-              .map((r: any, idx: number) => {
+              .map((r: any, idx: number): RoutePoint | null => {
                 const coords = parseCoords(r);
                 if (!coords) return null;
 
                 return {
-                  id: r.id && !isNaN(Number(r.id)) ? Number(r.id) : idx + 1000,
+                  id: r.id ? String(r.id) : `acara-${idx + 1000}`,
                   dari: r.destinasi || r.dari || '',
                   ke: r.aktivitas || r.ke || '',
                   tanggal: r.tanggal || '',
@@ -273,7 +272,6 @@ export const TourMap: React.FC<MapProps> = ({
               .filter((item): item is RoutePoint => item !== null);
 
             setAcaras(parsed);
-            setIsLoading(false);
           },
         });
       })
@@ -293,7 +291,7 @@ export const TourMap: React.FC<MapProps> = ({
 
   let activeSegmentCoords: [number, number][] = [];
   if (focusedRoute && !isHotelSelected && activeTab === 'travel') {
-    const idx = activeRoutes.findIndex((r) => r.id === focusedRoute.id);
+    const idx = activeRoutes.findIndex((r) => String(r.id) === String(focusedRoute.id));
     if (idx !== -1 && idx < activeRoutes.length - 1) {
       activeSegmentCoords = [activeRoutes[idx].coords, activeRoutes[idx + 1].coords];
     }
@@ -333,12 +331,12 @@ export const TourMap: React.FC<MapProps> = ({
             />
 
             {activeRoutes.map((item, idx) => {
-              const isSelected = selectedCity?.id === item.id;
+              const isSelected = String(selectedCity?.id) === String(item.id);
 
               let isCityActive = false;
               if (activeFocus && !isHotelSelected) {
-                const activeIdx = activeRoutes.findIndex((r) => r.id === activeFocus.id);
-                const isCurrentCity = item.id === activeFocus.id;
+                const activeIdx = activeRoutes.findIndex((r) => String(r.id) === String(activeFocus.id));
+                const isCurrentCity = String(item.id) === String(activeFocus.id);
                 const isNextCity = idx === activeIdx + 1;
                 isCityActive = isCurrentCity || isNextCity;
               }
@@ -384,7 +382,7 @@ export const TourMap: React.FC<MapProps> = ({
         {activeTab === 'other' && (
           <>
             {acaras.map((acara) => {
-              const isSelected = selectedCity?.id === acara.id;
+              const isSelected = String(selectedCity?.id) === String(acara.id);
 
               return (
                 <Marker

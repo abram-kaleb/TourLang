@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import Papa from 'papaparse';
-import { RoutePoint } from '../components/Perjalanan';
+import type { RoutePoint } from '../components/Perjalanan';
 
-const CSV_URL =
-  import.meta.env.VITE_GOOGLE_SHEETS_CSV_URL ||
-  process.env.REACT_APP_GOOGLE_SHEETS_CSV_URL;
+// Re-export tipe RoutePoint agar file lain bisa mengimpornya dari hook ini jika dibutuhkan
+export type { RoutePoint };
+
+const CSV_URL = import.meta.env.VITE_GOOGLE_SHEETS_CSV_URL as string | undefined;
 
 export const useRouteData = () => {
   const [routes, setRoutes] = useState<RoutePoint[]>([]);
@@ -28,13 +29,11 @@ export const useRouteData = () => {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
-            const parsedRoutes: RoutePoint[] = results.data
-              .map((row: any, idx: number) => {
+            const parsedRoutes = results.data
+              .map((row: any, idx: number): RoutePoint | null => {
                 const latNum = Number(row.lat);
                 const lngNum = Number(row.lng);
 
-                // 1. Ambil koordinat dari kolom 'coords' (misal: "-6.208, 106.845")
-                //    atau gabungkan dari kolom 'lat' & 'lng'
                 let parsedCoords: [number, number] | null = null;
 
                 if (row.coords && typeof row.coords === 'string') {
@@ -42,7 +41,7 @@ export const useRouteData = () => {
                   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
                     parsedCoords = [parts[0], parts[1]];
                   }
-                } else if (!isNaN(latNum) && !isNaN(lngNum)) {
+                } else if (!isNaN(latNum) && !isNaN(lngNum) && row.lat !== '' && row.lng !== '') {
                   parsedCoords = [latNum, lngNum];
                 }
 
@@ -50,7 +49,7 @@ export const useRouteData = () => {
                 if (!parsedCoords) return null;
 
                 return {
-                  id: row.id || `route-${idx}`,
+                  id: row.id ? String(row.id) : `route-${idx}`, // Pastikan ID selalu dikonversi ke String
                   dari: row.dari || '',
                   ke: row.ke || '',
                   tanggal: row.tanggal || '',

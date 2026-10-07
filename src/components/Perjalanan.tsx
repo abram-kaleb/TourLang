@@ -4,38 +4,44 @@ import * as turf from '@turf/turf';
 import L from 'leaflet';
 
 export interface RoutePoint {
-  id: string | number;
+  id: string | number; // BISA STRING ATAU NUMBER
   dari: string;
   ke: string;
   tanggal: string;
+  coords: [number, number];
+  startCoords?: [number, number] | string;
+  endCoords?: [number, number] | string;
   berangkat?: string;
   sampai?: string;
   transportasi?: string;
-  lat?: number | string;
-  lng?: number | string;
-  coords?: [number, number];
-  startCoords?: [number, number];
-  endCoords?: [number, number];
+  catatanLain?: string;
+  keterangan?: string;
+  gmaps?: string;
+  tiket?: string;
+  lat?: string | number;
+  lng?: string | number;
 }
 
-interface PerjalananProps {
-  routes: RoutePoint[];
+// Tambahkan interface ini
+export interface PerjalananProps {
+  routes?: RoutePoint[];
   selectedCity?: RoutePoint | null;
-  focusedRoute?: RoutePoint | null;
-  isHotelSelected?: boolean;
   onSelectCity?: (city: RoutePoint) => void;
-  onFocusRoute?: (route: RoutePoint) => void;
+  [key: string]: any;
 }
 
 // Helper: Memastikan koordinat valid berupa array [number, number]
-const parseCoords = (coords?: [number, number] | null): [number, number] | null => {
-  if (!coords || !Array.isArray(coords) || coords.length < 2) return null;
-  const lat = Number(coords[0]);
-  const lng = Number(coords[1]);
-  if (isNaN(lat) || isNaN(lng)) return null;
-  return [lat, lng];
+const parseCoords = (coords: string | [number, number] | null | undefined): [number, number] | null => {
+  if (!coords) return null;
+  if (Array.isArray(coords)) return coords;
+  if (typeof coords === 'string') {
+    const parts = coords.split(',').map((v) => Number(v.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return [parts[0], parts[1]];
+    }
+  }
+  return null;
 };
-
 // Helper: Membuat rute garis melengkung yang aman
 const createCurvedSegment = (
   start: [number, number],

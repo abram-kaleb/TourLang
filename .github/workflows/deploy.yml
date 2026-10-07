@@ -1,0 +1,36 @@
+# .github/workflows/deploy.yml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
+        env:
+          VITE_SOCKET_URL: ${{ secrets.VITE_SOCKET_URL }}
+          VITE_GSHEET_PERJALANAN_CSV: ${{ secrets.VITE_GSHEET_PERJALANAN_CSV }}
+          VITE_GSHEET_PENGINAPAN_CSV: ${{ secrets.VITE_GSHEET_PENGINAPAN_CSV }}
+          VITE_GSHEET_ACARA_CSV: ${{ secrets.VITE_GSHEET_ACARA_CSV }}
+
+          VITE_MAP_TILE_URL: ${{ secrets.VITE_MAP_TILE_URL }}
+          VITE_MAP_ATTRIBUTION: ${{ secrets.VITE_MAP_ATTRIBUTION }}
+
+        
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4

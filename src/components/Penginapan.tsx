@@ -13,6 +13,7 @@ export interface PenginapanItem {
   lat: number;
   lng: number;
   'link tiket'?: string;
+  selectedHotelId?: string | number | null;
 }
 
 interface PenginapanProps {
