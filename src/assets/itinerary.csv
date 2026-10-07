@@ -1,0 +1,16 @@
+id,dari,ke,tanggal,berangkat,sampai,transportasi,lat,lng,hotel,hotel_lat,hotel_lng,catatan
+1,frankfurt,hamburg,11/6/2026,5:13,9:29,ICE,50.1109,8.6821,Meininger Hotel Hamburg,53.5532,9.9401,Jalan-jalan sore di Speicherstadt & Elbphilharmonie
+2,hamburg,rostock,11/6/2026,11:22,13:50,RE,53.5511,9.9937,Pentahotel Rostock,54.0887,12.1328,Check-in & santai di pusat kota Rostock
+3,rostock,wismar,11/7/2026,13:06,14:15,RE,54.0924,12.0991,Townhouse Wismar,53.8918,11.4641,Keliling kota tua Wismar (UNESCO World Heritage)
+4,wismar,rostock,11/7/2026,18:42,19:51,RE,53.8924,11.465,Pentahotel Rostock,54.0887,12.1328,Makan malam hidangan laut khas Laut Baltik
+5,rostock,szczecin,11/8/2026,5:00,8:00,RE / Bus,54.0924,12.0991,Radisson Blu Szczecin,53.4289,14.5582,Sarapan & tur singkat di Wały Chrobrego
+6,szczecin,berlin,11/8/2026,8:15,10:00,RE / RB,53.4285,14.5528,Generator Hostel Berlin Alexanderplatz,52.5222,13.4143,Kunjungan ke Gerbang Brandenburg & Reichstag
+7,berlin,hannover,11/9/2026,14:00,15:40,ICE,52.52,13.405,IntercityHotel Hannover,52.3768,9.7410,Jalan-jalan di Herrenhäuser Gärten
+8,hannover,amsterdam,11/10/2026,16:00,17:00 (+1d),IC / DB,52.3759,9.732,The Social Hub Amsterdam City,52.3546,4.9123,Jelajah kanal malam hari & makan malam
+10,amsterdam,brussels,11/13/2026,10:15,12:00,Eurostar,52.3676,4.9041,Motel One Brussels,50.8467,4.3601,Mencicipi Waffle Belgia & mengunjungi Grand Place
+11,brussels,paris,11/15/2026,09:30,11:00,Eurostar,50.8503,4.3517,CitizenM Paris Gare de Lyon,48.8448,2.3731,Foto-foto di Menara Eiffel & Museum Louvre
+13,paris,stuttgart,11/18/2026,13:15,16:30,TGV / ICE,48.8566,2.3522,A&O Stuttgart City,48.7901,9.1865,Kunjungan ke Museum Mercedes-Benz
+14,stuttgart,munich,11/21/2026,08:30,10:45,ICE,48.7758,9.1829,Ruby Lilly Hotel Munich,48.1442,11.5621,Nikmati suasana Marienplatz & Hofbräuhaus
+15,munich,innsbruck,11/23/2026,11:00,12:45,EC / ÖBB,48.1351,11.582,Stage 12 Hotel Innsbruck,47.2655,11.3932,Nikmati pemandangan Pegunungan Alpen & Atap Emas
+16,innsbruck,zurich,11/25/2026,14:20,18:00,Railjet,47.2692,11.4041,25hours Hotel Langstrasse Zurich,47.3789,8.5273,Belanja di Bahnhofstrasse & jalan-jalan tepi Danau Zurich
+17,zurich,zurich,11/26/2026,10:00,12:00,Selesai,47.3769,8.5417,25hours Hotel Langstrasse Zurich,47.3789,8.5273,Persiapan kepulangan & check-out
