@@ -1,41 +1,17 @@
 /**
  * Mengubah isi sheet menjadi hari dan kartu.
  *
- * Tab rundown adalah tulang punggung: satu baris = satu kartu. Tab lain dicocokkan otomatis:
- * - perjalanan: lewat link tiket (file Drive yang sama di rundown dan perjalanan)
- * - penginapan: lewat tanggal malam menginap dan kota
- * - acara: lewat tanggal dan jam (foto, sejarah, kartu undangan)
- * - catatan: lewat kota atau cara bayar (Deutschlandticket, kartu metro, dan sebagainya)
- * - segmen (opsional): rute per kereta untuk tiket dengan transit
+ * Tab rundown adalah sumber utama: satu baris = satu kartu. Tab acara hanya dipakai untuk foto
+ * (dicocokkan lewat tanggal + jam). Tab lain (perjalanan, penginapan, catatan, segmen) tidak dibaca.
  *
- * Kolom opsional di rundown yang mengalahkan tebakan otomatis: dari, ke, moda, aksi.
+ * Kolom rundown: tanggal, mulai, selesai, kategori, kegiatan, tempat, keterangan, gmaps, kota,
+ * link tiket, booking. Kolom opsional yang mengalahkan tebakan otomatis: dari, ke, moda, aksi, status.
  */
-import type {
-  Card,
-  Day,
-  DestInfo,
-  Detail,
-  HotelInfo,
-  Kategori,
-  Leg,
-  PassInfo,
-  Row,
-  SheetData,
-  TicketInfo,
-} from '../types';
+import type { Card, Day, DestInfo, Detail, HotelInfo, Kategori, Row, SheetData, TicketInfo } from '../types';
 import type { ModeIcon } from './mode';
 import { addDays, fmtTime, labelShort, parseDateKey, parseTime } from './time';
 
 const KATEGORI: Kategori[] = ['transport', 'hotel', 'makan', 'wisata', 'belanja', 'acara'];
-
-/** Nama kota yang ditulis berbeda di tab yang berbeda. */
-const CITY_ALIAS: Record<string, string> = {
-  lucerne: 'luzern',
-  münchen: 'munich',
-  muenchen: 'munich',
-  zürich: 'zurich',
-  füssen: 'fussen',
-};
 
 const STATUS_HIDDEN = new Set(['', 'fix', 'deutschlandticket']);
 
@@ -50,15 +26,6 @@ function get(row: Row | undefined, ...names: string[]): string {
 
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-}
-
-function city(s: string): string {
-  const k = s.trim().toLowerCase();
-  return CITY_ALIAS[k] ?? k;
-}
-
-function driveId(url: string): string {
-  return url.match(/\/d\/([\w-]{10,})/)?.[1] ?? url.match(/[?&]id=([\w-]{10,})/)?.[1] ?? '';
 }
 
 function kategoriOf(s: string): Kategori {
@@ -114,37 +81,14 @@ function destinationFromTitle(title: string): string {
   return m ? cap(m[1].trim()) : '';
 }
 
-function splitName(nama: string): { name: string; room?: string } {
-  const m = nama.match(/^(.*?)\s*\((.*)\)\s*$/);
-  return m ? { name: m[1].trim(), room: m[2].trim() } : { name: nama.trim() };
-}
-
-function legsFrom(segs: Row[]): Leg[] {
-  return [...segs]
-    .sort((a, b) => Number(get(a, 'urutan')) - Number(get(b, 'urutan')))
-    .map((s) => ({
-      train: get(s, 'kereta', 'transportasi'),
-      from: get(s, 'dari'),
-      dep: fmtTime(parseTime(get(s, 'berangkat')) ?? 0),
-      platform: get(s, 'peron', 'peron berangkat') || undefined,
-      to: get(s, 'ke'),
-      arr: fmtTime(parseTime(get(s, 'tiba', 'sampai')) ?? 0),
-      arrPlatform: get(s, 'peron tiba') || undefined,
-      seat: get(s, 'gerbong/kursi', 'kursi', 'gerbong') || undefined,
-    }));
-}
-
-function buildTicket(r: Row, p: Row | undefined, segs: Row[], dayKey: string): TicketInfo {
-  const dateKey = parseDateKey(get(p, 'tanggal')) ?? dayKey;
-  const dep = parseTime(get(p, 'berangkat') || get(r, 'mulai')) ?? 0;
-  const arr = parseTime(get(p, 'sampai') || get(r, 'selesai')) ?? dep;
-  const label = trainNo(`${get(r, 'kegiatan')} ${get(r, 'tempat')}`) || get(p, 'transportasi') || 'Tiket';
-  const from = get(r, 'dari') || cap(get(p, 'dari')) || get(r, 'tempat');
-  const to = get(r, 'ke') || cap(get(p, 'ke')) || destinationFromTitle(get(r, 'kegiatan'));
+/** Tiket dari kolom rundown saja: jam, dari-ke, booking, link tiket. */
+function buildTicket(r: Row, dayKey: string): TicketInfo {
+  const dep = parseTime(get(r, 'mulai')) ?? 0;
+  const arr = parseTime(get(r, 'selesai')) ?? dep;
+  const label = trainNo(`${get(r, 'kegiatan')} ${get(r, 'tempat')}`) || 'Tiket';
+  const from = get(r, 'dari') || get(r, 'tempat');
+  const to = get(r, 'ke') || destinationFromTitle(get(r, 'kegiatan'));
   const booking = get(r, 'booking');
-  const legs = segs.length
-    ? legsFrom(segs)
-    : [{ train: label, from, dep: fmtTime(dep), to, arr: fmtTime(arr), seat: booking || undefined }];
   return {
     label,
     from,
@@ -152,58 +96,23 @@ function buildTicket(r: Row, p: Row | undefined, segs: Row[], dayKey: string): T
     dep: fmtTime(dep),
     arr: fmtTime(arr),
     nextDay: arr < dep,
-    dateFrom: labelShort(dateKey),
-    dateTo: labelShort(arr < dep ? addDays(dateKey, 1) : dateKey),
+    dateFrom: labelShort(dayKey),
+    dateTo: labelShort(arr < dep ? addDays(dayKey, 1) : dayKey),
     booking: booking || undefined,
     note: get(r, 'keterangan') || undefined,
-    pdf: get(r, 'link tiket') || get(p, 'link tiket') || undefined,
-    legs,
+    pdf: get(r, 'link tiket') || undefined,
+    legs: [{ train: label, from, dep: fmtTime(dep), to, arr: fmtTime(arr), seat: booking || undefined }],
   };
 }
 
-function passName(caraBayar: string): string {
-  return caraBayar.split(/[(,]|\sdi\s/)[0].trim().slice(0, 40);
-}
-
-function passFor(r: Row, catatan: Row[]): PassInfo | undefined {
-  const status = get(r, 'status').toLowerCase();
-  const text = `${get(r, 'kegiatan')} ${get(r, 'keterangan')}`.toLowerCase();
-  const kota = city(get(r, 'kota'));
-
-  let c: Row | undefined;
-  if (status.includes('deutschlandticket') || text.includes('deutschlandticket')) {
-    c = catatan.find((x) => /deutschlandticket/i.test(get(x, 'cara bayar')));
-  } else if (/metro|tram|s-bahn|u-bahn|\bbus\b|kereta/.test(text)) {
-    c = catatan.find((x) => kota && city(get(x, 'kota')).includes(kota));
-  }
-  if (!c) return undefined;
-  return { name: passName(get(c, 'cara bayar')), tips: get(c, 'tips'), via: get(r, 'keterangan') || undefined };
-}
-
-function hotelFor(r: Row, dayKey: string, startMin: number, penginapan: Row[]): HotelInfo {
-  const kota = city(get(r, 'kota'));
-  const nightOf = (key: string) =>
-    penginapan.find((x) => parseDateKey(get(x, 'tanggal')) === key && city(get(x, 'kota')) === kota);
-  // Pagi hari biasanya masih bagian dari malam sebelumnya (sarapan, cek out).
-  // Kalau kotanya beda (baru tiba, titip koper), pakai malam hari itu.
-  const p = startMin < 12 * 60 ? nightOf(addDays(dayKey, -1)) ?? nightOf(dayKey) : nightOf(dayKey) ?? nightOf(addDays(dayKey, -1));
-
-  const fromSheet = splitName(get(p, 'nama'));
+/** Hotel dari kolom rundown saja: nama dari kolom tempat. */
+function hotelOf(r: Row): HotelInfo {
   const tempat = get(r, 'tempat');
   const generic = !tempat || /^hotel$/i.test(tempat);
-  const name = fromSheet.name || (generic ? `Hotel di ${cap(get(r, 'kota'))}` : tempat);
-  const booked = Boolean(fromSheet.name) && !/belum/i.test(get(r, 'status'));
-  return { name, room: fromSheet.room, checkIn: get(p, 'cek in') || undefined, booked };
-}
-
-function hotelLinks(r: Row, dayKey: string, startMin: number, penginapan: Row[]) {
-  const kota = city(get(r, 'kota'));
-  const keys = startMin < 12 * 60 ? [addDays(dayKey, -1), dayKey] : [dayKey, addDays(dayKey, -1)];
-  for (const k of keys) {
-    const p = penginapan.find((x) => parseDateKey(get(x, 'tanggal')) === k && city(get(x, 'kota')) === kota);
-    if (p) return { nav: get(p, 'gmaps'), link: get(p, 'link tiket') };
-  }
-  return { nav: '', link: '' };
+  return {
+    name: generic ? `Hotel di ${cap(get(r, 'kota'))}` : tempat,
+    booked: !/belum/i.test(get(r, 'status')),
+  };
 }
 
 function actionOf(r: Row): string {
@@ -220,20 +129,15 @@ function actionOf(r: Row): string {
   return 'Di hotel';
 }
 
-function destFor(dayKey: string, startMin: number, acara: Row[]): DestInfo | undefined {
+/** Foto dari tab acara: baris acara di tanggal sama yang jamnya mencakup jam mulai kegiatan. */
+function photoFor(dayKey: string, startMin: number, acara: Row[]): DestInfo | undefined {
   const hit = acara.find((a) => {
-    if (parseDateKey(get(a, 'tanggal')) !== dayKey) return false;
+    if (parseDateKey(get(a, 'tanggal')) !== dayKey || !get(a, 'foto')) return false;
     const s = parseTime(get(a, 'mulai'));
     const e = parseTime(get(a, 'selesai'));
     return s != null && e != null && startMin >= s && startMin < e;
   });
-  if (!hit) return undefined;
-  return {
-    name: get(hit, 'destinasi'),
-    photo: get(hit, 'foto') || undefined,
-    photoSource: get(hit, 'sumber foto') || undefined,
-    history: get(hit, 'sejarah') || undefined,
-  };
+  return hit ? { name: get(hit, 'destinasi'), photo: get(hit, 'foto') } : undefined;
 }
 
 function routeOf(cities: string[]): string {
@@ -245,25 +149,8 @@ function routeOf(cities: string[]): string {
 }
 
 export function buildTrip(data: SheetData): Day[] {
-  const S = data.sheets;
-  const rundown = S['rundown'] ?? [];
-  const perjalanan = S['perjalanan'] ?? [];
-  const penginapan = S['penginapan'] ?? [];
-  const acara = S['acara'] ?? [];
-  const catatan = S['catatan'] ?? [];
-  const segmen = S['segmen'] ?? [];
-
-  const perjByDrive = new Map<string, Row>();
-  for (const p of perjalanan) {
-    const id = driveId(get(p, 'link tiket'));
-    if (id && !perjByDrive.has(id)) perjByDrive.set(id, p);
-  }
-  const segByPerj = new Map<string, Row[]>();
-  for (const s of segmen) {
-    const id = get(s, 'perjalanan id', 'perjalanan_id', 'id perjalanan');
-    if (!id) continue;
-    segByPerj.set(id, [...(segByPerj.get(id) ?? []), s]);
-  }
+  const rundown = data.sheets['rundown'] ?? [];
+  const acara = data.sheets['acara'] ?? [];
 
   const byDay = new Map<string, Card[]>();
 
@@ -293,50 +180,21 @@ export function buildTrip(data: SheetData): Day[] {
     let card: Card;
     switch (kategori) {
       case 'transport': {
-        const link = get(r, 'link tiket');
-        const p = link ? perjByDrive.get(driveId(link)) : undefined;
-        const ticket = link ? buildTicket(r, p, p ? segByPerj.get(get(p, 'id')) ?? [] : [], dayKey) : undefined;
-        const pass = ticket ? undefined : passFor(r, catatan);
-        let mode = ticket?.label && ticket.label !== 'Tiket' ? ticket.label : modeOf(r);
-        if (pass && mode === 'Kereta') mode = 'Kereta regional';
+        const ticket = get(r, 'link tiket') ? buildTicket(r, dayKey) : undefined;
+        const mode = ticket?.label && ticket.label !== 'Tiket' ? ticket.label : modeOf(r);
         const to = get(r, 'ke') || ticket?.to || destinationFromTitle(base.title) || base.place;
         let from = get(r, 'dari') || ticket?.from || base.place;
         if (!from || from === to) from = cap(base.city);
 
         const details: Detail[] = [];
-        if (ticket && ticket.legs.length > 1) {
-          details.push({ label: 'Transit', value: ticket.legs.slice(0, -1).map((l) => l.to).join(', ') });
-        }
-        const firstPlatform = ticket?.legs[0]?.platform;
-        if (firstPlatform) details.push({ label: 'Peron', value: firstPlatform });
         if (get(r, 'booking')) details.push({ label: 'Detail', value: get(r, 'booking') });
-        if (pass) details.push({ label: 'Tiket', value: pass.name });
 
-        card = {
-          ...base,
-          kind: 'ticket',
-          mode,
-          icon: iconOf(mode, r),
-          from,
-          to,
-          details,
-          ticket,
-          pass,
-        };
+        card = { ...base, kind: 'ticket', mode, icon: iconOf(mode, r), from, to, details, ticket };
         break;
       }
-      case 'hotel': {
-        const links = hotelLinks(r, dayKey, startMin, penginapan);
-        card = {
-          ...base,
-          nav: base.nav || links.nav || undefined,
-          link: base.link || links.link || undefined,
-          kind: 'key',
-          hotel: hotelFor(r, dayKey, startMin, penginapan),
-          action: actionOf(r),
-        };
+      case 'hotel':
+        card = { ...base, kind: 'key', hotel: hotelOf(r), action: actionOf(r) };
         break;
-      }
       case 'makan':
         card = { ...base, kind: 'receipt' };
         break;
@@ -344,10 +202,10 @@ export function buildTrip(data: SheetData): Day[] {
         card = { ...base, kind: 'tag', taxFree: /tax free/i.test(`${base.note} ${base.title}`) };
         break;
       case 'acara':
-        card = { ...base, kind: 'invite', dest: destFor(dayKey, startMin, acara) };
+        card = { ...base, kind: 'invite', dest: photoFor(dayKey, startMin, acara) };
         break;
       default:
-        card = { ...base, kind: 'postcard', dest: destFor(dayKey, startMin, acara) };
+        card = { ...base, kind: 'postcard', dest: photoFor(dayKey, startMin, acara) };
     }
 
     byDay.set(dayKey, [...(byDay.get(dayKey) ?? []), card]);
