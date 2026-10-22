@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-ink: #0e1726;
+  --color-ground: #2B3445;
+  --color-muted: #5b6474;
+  --color-soft: #3f4857;
+  --color-line: #d9dee6;
+  --color-accent: #c2410c;
+  --color-gold: #fbbf24;
+  --color-rail: #1e3a8a;
+  --color-road: #b45309;
+  --color-air: #0369a1;
+  --color-trail: #166534;
+  --color-meadow: #f2f7ef;
+  --color-keycard: #2e1065;
+  --color-postal: #115e59;
+  --color-tag: #9d174d;
+  --color-paper: #fffdf7;
+  /* Latar obrolan v2: kertas hangat, bubble putih di atasnya. */
+  --color-wall: #efeae0;
+  --color-wall-dot: #e2dbcd;
+
+  --shadow-card: 0 10px 30px rgba(14, 23, 38, 0.1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-wall);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.paper-lines {
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #e7e1d2 25px, #e7e1d2 26px);
+  line-height: 26px;
+}
+
+/* Pinggir bawah struk yang bergerigi. */
+.receipt-edge {
+  background: radial-gradient(circle at 10px 12px, var(--color-ground) 7px, transparent 7.5px) repeat-x;
+  background-size: 20px 12px;
+}
+
+/* Garis rute di kartu tiket, beda per moda. */
+.route-rail {
+  height: 8px;
+  border-block: 2px solid currentColor;
+  background: repeating-linear-gradient(to right, currentColor 0 2px, transparent 2px 9px);
+  opacity: 0.35;
+}
+.route-road {
+  height: 6px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(to right, currentColor 0 10px, transparent 10px 16px) center / 100% 2px no-repeat,
+    color-mix(in srgb, currentColor 14%, transparent);
+}
+.route-air {
+  height: 2px;
+  background: repeating-linear-gradient(to right, currentColor 0 3px, transparent 3px 8px);
+  opacity: 0.55;
+}
+
+/* Jejak langkah di kartu jalan kaki. */
+.footsteps {
+  width: 2px;
+  background: repeating-linear-gradient(to bottom, currentColor 0 4px, transparent 4px 10px);
+  opacity: 0.45;
+}
+
+/* Pola titik halus seperti wallpaper obrolan. */
+.chat-wall {
+  background-color: var(--color-wall);
+  background-image: radial-gradient(var(--color-wall-dot) 1.2px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+/* Halaman hari: geser kiri-kanan, berhenti tepat per hari. */
+.day-pager {
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.day-pager::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.day-page {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overscroll-behavior-y: contain;
+}
+
+@keyframes bubble-in {
+  from {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.animate-bubble {
+  animation: bubble-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-live {
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-sheet-up {
+  animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
