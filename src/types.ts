@@ -77,6 +77,8 @@ interface CardBase {
   status: string;
   nav?: string;
   link?: string;
+  /** Foto dan sejarah tempat (kolom foto, sumber foto, sejarah di rundown). */
+  dest?: DestInfo;
 }
 
 export type TicketCardData = CardBase & {
@@ -91,9 +93,9 @@ export type TicketCardData = CardBase & {
 };
 export type KeyCardData = CardBase & { kind: 'key'; hotel: HotelInfo; action: string };
 export type ReceiptCardData = CardBase & { kind: 'receipt' };
-export type PostcardCardData = CardBase & { kind: 'postcard'; dest?: DestInfo };
+export type PostcardCardData = CardBase & { kind: 'postcard' };
 export type TagCardData = CardBase & { kind: 'tag'; taxFree: boolean };
-export type InviteCardData = CardBase & { kind: 'invite'; dest?: DestInfo };
+export type InviteCardData = CardBase & { kind: 'invite' };
 
 export type Card =
   | TicketCardData

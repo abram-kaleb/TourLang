@@ -1,11 +1,11 @@
 /**
  * Mengubah isi sheet menjadi hari dan kartu.
  *
- * Tab rundown adalah sumber utama: satu baris = satu kartu. Tab acara hanya dipakai untuk foto
- * (dicocokkan lewat tanggal + jam). Tab lain (perjalanan, penginapan, catatan, segmen) tidak dibaca.
+ * Hanya tab rundown yang dipakai: satu baris = satu kartu. Tab lain tidak dibaca,
+ * jadi yang tampil persis yang ditulis di rundown.
  *
  * Kolom rundown: tanggal, mulai, selesai, kategori, kegiatan, tempat, keterangan, gmaps, kota,
- * link tiket, booking. Kolom opsional yang mengalahkan tebakan otomatis: dari, ke, moda, aksi, status.
+ * link tiket, booking, foto, sumber foto, sejarah. Kolom opsional yang mengalahkan tebakan otomatis: dari, ke, moda, aksi, status.
  */
 import type { Card, Day, DestInfo, Detail, HotelInfo, Kategori, Row, SheetData, TicketInfo } from '../types';
 import type { ModeIcon } from './mode';
@@ -129,15 +129,17 @@ function actionOf(r: Row): string {
   return 'Di hotel';
 }
 
-/** Foto dari tab acara: baris acara di tanggal sama yang jamnya mencakup jam mulai kegiatan. */
-function photoFor(dayKey: string, startMin: number, acara: Row[]): DestInfo | undefined {
-  const hit = acara.find((a) => {
-    if (parseDateKey(get(a, 'tanggal')) !== dayKey || !get(a, 'foto')) return false;
-    const s = parseTime(get(a, 'mulai'));
-    const e = parseTime(get(a, 'selesai'));
-    return s != null && e != null && startMin >= s && startMin < e;
-  });
-  return hit ? { name: get(hit, 'destinasi'), photo: get(hit, 'foto') } : undefined;
+/** Foto dan sejarah dari kolom rundown. Kosong kalau baris itu tidak punya foto maupun sejarah. */
+function destOf(r: Row): DestInfo | undefined {
+  const photo = get(r, 'foto');
+  const history = get(r, 'sejarah');
+  if (!photo && !history) return undefined;
+  return {
+    name: get(r, 'tempat') || get(r, 'kegiatan'),
+    photo: photo || undefined,
+    photoSource: get(r, 'sumber foto') || undefined,
+    history: history || undefined,
+  };
 }
 
 function routeOf(cities: string[]): string {
@@ -150,7 +152,6 @@ function routeOf(cities: string[]): string {
 
 export function buildTrip(data: SheetData): Day[] {
   const rundown = data.sheets['rundown'] ?? [];
-  const acara = data.sheets['acara'] ?? [];
 
   const byDay = new Map<string, Card[]>();
 
@@ -175,6 +176,7 @@ export function buildTrip(data: SheetData): Day[] {
       status: STATUS_HIDDEN.has(get(r, 'status').toLowerCase()) ? '' : get(r, 'status'),
       nav: get(r, 'gmaps') || undefined,
       link: get(r, 'link tiket') || undefined,
+      dest: destOf(r),
     };
 
     let card: Card;
@@ -202,10 +204,10 @@ export function buildTrip(data: SheetData): Day[] {
         card = { ...base, kind: 'tag', taxFree: /tax free/i.test(`${base.note} ${base.title}`) };
         break;
       case 'acara':
-        card = { ...base, kind: 'invite', dest: photoFor(dayKey, startMin, acara) };
+        card = { ...base, kind: 'invite' };
         break;
       default:
-        card = { ...base, kind: 'postcard', dest: photoFor(dayKey, startMin, acara) };
+        card = { ...base, kind: 'postcard' };
     }
 
     byDay.set(dayKey, [...(byDay.get(dayKey) ?? []), card]);

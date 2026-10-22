@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MODE } from '../lib/mode';
 import { fmtTime } from '../lib/time';
 import type { Card, Rel, TicketCardData } from '../types';
@@ -295,13 +295,16 @@ const PLACE: Record<Exclude<Card['kind'], 'ticket'>, { label: string; icon: Icon
 function PlaceBubble({ card, rel, sender, first }: { card: Exclude<Card, TicketCardData>; rel: Rel; sender: Sender; first: boolean }) {
   const p = PLACE[card.kind];
   const invite = card.kind === 'invite';
-  const photo = card.kind === 'postcard' || card.kind === 'invite' ? card.dest?.photo : undefined;
+  const [story, setStory] = useState(false);
+  const dest = card.dest;
+  const photo = dest?.photo;
   const hotel = card.kind === 'key' ? card.hotel : undefined;
   const unbooked = hotel && !hotel.booked;
   const city = card.city ? card.city.charAt(0).toUpperCase() + card.city.slice(1) : '';
   const where = hotel ? '' : card.place || city;
 
   const actions: Action[] = [];
+  if (dest?.history) actions.push({ label: story ? 'Tutup' : 'Sejarah', icon: 'book', onClick: () => setStory((v) => !v) });
   if (card.link) actions.push({ label: hotel ? 'Booking' : 'Tiket', icon: 'file', href: card.link });
   if (card.nav) actions.push({ label: 'Navigasi', icon: 'navigate', href: card.nav });
 
@@ -344,6 +347,18 @@ function PlaceBubble({ card, rel, sender, first }: { card: Exclude<Card, TicketC
         {card.status && (
           <div className="flex">
             <Todo text={card.status} />
+          </div>
+        )}
+
+        {story && dest?.history && (
+          <div className={`mt-2.5 rounded-xl p-3 text-[14px] leading-relaxed ${invite ? 'bg-white/10' : 'bg-paper'}`}>
+            <p className={`mb-1 text-[11px] font-bold uppercase tracking-[0.08em] ${p.color}`}>Sejarah {dest.name}</p>
+            <p className="whitespace-pre-line">{dest.history}</p>
+            {dest.photoSource && (
+              <a href={dest.photoSource} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block text-xs underline opacity-70">
+                Sumber foto
+              </a>
+            )}
           </div>
         )}
 
