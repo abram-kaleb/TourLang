@@ -15,15 +15,15 @@ export default defineConfig({
         short_name: 'TourLang v2',
         description: 'Jadwal perjalanan keluarga di Eropa',
         lang: 'id',
-        start_url: '/TourLangv2/',
-        scope: '/TourLangv2/',
+        start_url: '/TourLang/',
+        scope: '/TourLang/',
         display: 'standalone',
         background_color: '#EEF1F5',
         theme_color: '#EEF1F5',
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
       },
       workbox: {
-        navigateFallback: '/TourLangv2/index.html',
+        navigateFallback: '/TourLang/index.html',
         runtimeCaching: [
           {
             // Foto destinasi (Wikimedia atau sumber lain di kolom foto) disimpan supaya tetap tampil saat offline.
@@ -44,5 +44,5 @@ export default defineConfig({
       },
     }),
   ],
-  base: '/TourLangv2/',
+  base: '/TourLang/',
 });
