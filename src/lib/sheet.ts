@@ -1,5 +1,5 @@
 import { CACHE_KEY, KEY_STORAGE, SHEET_API } from '../config';
-import type { Row, SheetData } from '../types';
+import type { Photo, Row, SheetData } from '../types';
 
 /** Dilempar kalau kode akses belum ada atau ditolak server. */
 export class AuthError extends Error {}
@@ -32,7 +32,7 @@ export function clearKey() {
 
 function normalize(raw: unknown): SheetData {
   if (!raw || typeof raw !== 'object') throw new Error('Format data tidak dikenali');
-  const r = raw as { updatedAt?: string; sheets?: Record<string, unknown>; error?: string };
+  const r = raw as { updatedAt?: string; sheets?: Record<string, unknown>; photos?: unknown; error?: string };
   if (r.error) throw r.error === 'Kunci akses salah' ? new AuthError(r.error) : new Error(r.error);
   if (!r.sheets) throw new Error('Data sheet kosong');
 
@@ -47,7 +47,12 @@ function normalize(raw: unknown): SheetData {
       return out;
     });
   }
-  return { updatedAt: r.updatedAt ?? new Date().toISOString(), sheets };
+  const photos: Photo[] = Array.isArray(r.photos)
+    ? (r.photos as Record<string, unknown>[])
+        .filter((p) => p && typeof p.id === 'string' && typeof p.t === 'string')
+        .map((p) => ({ id: String(p.id), name: String(p.name ?? ''), t: String(p.t) }))
+    : [];
+  return { updatedAt: r.updatedAt ?? new Date().toISOString(), sheets, photos };
 }
 
 export async function fetchSheet(signal?: AbortSignal): Promise<SheetData> {

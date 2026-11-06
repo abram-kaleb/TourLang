@@ -11,5 +11,8 @@ export const TIME_ZONE = 'Europe/Berlin';
 
 export const CACHE_KEY = 'tourlang:data:v1';
 
+/** Folder Google Drive tempat semua foto perjalanan. Upload lewat aplikasi Google Drive. */
+export const PHOTO_FOLDER_URL = 'https://drive.google.com/drive/folders/1UCvYPm1i9UPxgb_3wxa0lkFkSPfK4x5c';
+
 /** Ambil data baru dari sheet setiap berapa menit selama app terbuka. */
 export const REFRESH_MINUTES = 10;

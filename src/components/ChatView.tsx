@@ -3,11 +3,15 @@ import { findNowPos } from '../lib/position';
 import { dayOfMonth, DOW_SHORT, dow, labelShort, type Now } from '../lib/time';
 import type { Day, TicketCardData } from '../types';
 import { DayFeed } from './DayFeed';
+import { PhotoButtons, PhotoViewer } from './Photos';
+import { photosByCard } from '../lib/photos';
+import type { Photo } from '../types';
 import { DayPicker } from './DayPicker';
 import { TicketSheet } from './TicketSheet';
 
 interface Props {
   days: Day[];
+  photos: Photo[];
   now: Now;
   updatedAt?: string;
   error: string | null;
@@ -20,7 +24,7 @@ interface Props {
  * Geser kiri-kanan untuk pindah hari (scroll-snap bawaan browser, jadi mulus di HP),
  * scroll ke bawah untuk melihat agenda hari itu.
  */
-export function ChatView({ days, now, updatedAt, error, loading, onRefresh }: Props) {
+export function ChatView({ days, photos, now, updatedAt, error, loading, onRefresh }: Props) {
   const nowPos = useMemo(() => findNowPos(days, now), [days, now]);
   const [d, setD] = useState(nowPos.d);
   const [picker, setPicker] = useState(false);
@@ -31,6 +35,11 @@ export function ChatView({ days, now, updatedAt, error, loading, onRefresh }: Pr
   const stripRef = useRef<HTMLDivElement>(null);
 
   const cur = Math.min(d, days.length - 1);
+
+  // ---------- Foto ----------
+  // Foto di-upload lewat aplikasi Google Drive; app hanya membaca daftar foto dari folder.
+  const photoMap = useMemo(() => photosByCard(days, photos), [days, photos]);
+  const [viewer, setViewer] = useState<{ photos: Photo[]; index: number } | null>(null);
 
   /** Scroll vertikal halaman hari ke agenda "sekarang" (atau ke atas untuk hari lain). */
   const focusPage = useCallback(
@@ -91,13 +100,13 @@ export function ChatView({ days, now, updatedAt, error, loading, onRefresh }: Pr
   // Panah kiri/kanan di keyboard (untuk dicoba di laptop).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (picker || ticketCard) return;
+      if (picker || ticketCard || viewer) return;
       if (e.key === 'ArrowRight' && cur < days.length - 1) goDay(cur + 1);
       if (e.key === 'ArrowLeft' && cur > 0) goDay(cur - 1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [cur, days.length, goDay, picker, ticketCard]);
+  }, [cur, days.length, goDay, picker, ticketCard, viewer]);
 
   const goNow = () => {
     goDay(nowPos.d);
@@ -123,6 +132,8 @@ export function ChatView({ days, now, updatedAt, error, loading, onRefresh }: Pr
             hasNext={di < days.length - 1}
             offline={Boolean(error)}
             onOpenTicket={setTicketCard}
+            photos={photoMap}
+            onOpenPhoto={(list, index) => setViewer({ photos: list, index })}
             onNext={() => goDay(di + 1)}
             onPickDay={() => setPicker(true)}
           />
@@ -173,6 +184,7 @@ export function ChatView({ days, now, updatedAt, error, loading, onRefresh }: Pr
             );
           })}
         </div>
+        <PhotoButtons loading={loading} onRefresh={onRefresh} />
       </nav>
 
       {picker && (
@@ -191,6 +203,7 @@ export function ChatView({ days, now, updatedAt, error, loading, onRefresh }: Pr
         />
       )}
       {ticketCard && <TicketSheet card={ticketCard} onClose={() => setTicketCard(null)} />}
+      {viewer && <PhotoViewer photos={viewer.photos} start={viewer.index} onClose={() => setViewer(null)} />}
     </div>
   );
 }

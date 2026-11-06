@@ -1,7 +1,14 @@
-import type { Card, Day, Rel } from '../types';
+import type { Card, Day, Progress, Rel } from '../types';
 import { dayDiff, fmtDuration, type Now } from './time';
 
 /** Label waktu relatif di pojok kartu: "Selesai", "Sedang berlangsung", "24 menit lagi", "3 hari lagi". */
+function live(start: number, end: number, nowMin: number): Rel {
+  const total = Math.max(1, end - start);
+  const done = Math.min(Math.max(nowMin - start, 0), total);
+  const progress: Progress = { pct: done / total, left: Math.max(0, end - nowMin), end };
+  return { text: 'Sedang berlangsung', kind: 'live', progress };
+}
+
 export function relOf(card: Card, now: Now): Rel {
   const days = dayDiff(now.key, card.dayKey);
   const start = card.startMin;
@@ -11,16 +18,16 @@ export function relOf(card: Card, now: Now): Rel {
   if (days > 0) return { text: days === 1 ? 'Besok' : `${days} hari lagi`, kind: 'future' };
   if (days < 0) {
     // Kereta tidur kemarin malam yang masih berjalan pagi ini.
-    if (days === -1 && card.endNextDay && now.min + 1440 < end) return { text: 'Sedang berlangsung', kind: 'live' };
+    if (days === -1 && card.endNextDay && now.min + 1440 < end) return live(start - 1440, end - 1440, now.min);
     return { text: 'Selesai', kind: 'done' };
   }
 
   if (end > start) {
-    if (now.min >= start && now.min < end) return { text: 'Sedang berlangsung', kind: 'live' };
+    if (now.min >= start && now.min < end) return live(start, end, now.min);
     if (now.min >= end) return { text: 'Selesai', kind: 'done' };
   } else if (now.min >= start) {
     // Kegiatan tanpa jam selesai dianggap berlangsung 30 menit.
-    return now.min < start + 30 ? { text: 'Sedang berlangsung', kind: 'live' } : { text: 'Selesai', kind: 'done' };
+    return now.min < start + 30 ? live(start, start + 30, now.min) : { text: 'Selesai', kind: 'done' };
   }
   return { text: `${fmtDuration(start - now.min)} lagi`, kind: 'future' };
 }

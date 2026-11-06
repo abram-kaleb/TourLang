@@ -1,8 +1,9 @@
 import { forwardRef, Fragment, type ReactNode } from 'react';
 import { relOf } from '../lib/position';
 import { fmtDuration, fmtTime, labelShort, type Now } from '../lib/time';
-import type { Day, TicketCardData } from '../types';
+import type { Day, Photo, TicketCardData } from '../types';
 import { Bubble, senderOf } from './Bubble';
+import { PhotoStrip } from './Photos';
 
 /** Pesan sistem di tengah, seperti label tanggal di aplikasi chat. */
 function SystemPill({ children }: { children: ReactNode }) {
@@ -44,14 +45,19 @@ export const DayFeed = forwardRef<
     hasNext: boolean;
     offline: boolean;
     onOpenTicket: (c: TicketCardData) => void;
+    /** Foto per agenda (kunci: id kartu). */
+    photos: Map<string, Photo[]>;
+    onOpenPhoto: (photos: Photo[], index: number) => void;
     onNext: () => void;
     onPickDay: () => void;
   }
->(function DayFeed({ day, now, isLast, hasNext, offline, onOpenTicket, onNext, onPickDay }, ref) {
+>(function DayFeed({ day, now, isLast, hasNext, offline, onOpenTicket, photos, onOpenPhoto, onNext, onPickDay }, ref) {
   const today = day.key === now.key;
   // Garis "Sekarang" ditaruh sebelum agenda pertama yang belum mulai.
   const nowIdx = today ? day.cards.findIndex((c) => c.startMin > now.min) : -1;
-  const nowAt = today ? (nowIdx < 0 ? day.cards.length : nowIdx) : -1;
+  // Kalau ada agenda yang sedang berlangsung, garis "Sekarang" diganti progress bar di bubble itu.
+  const hasLive = today && day.cards.some((c) => relOf(c, now).kind === 'live');
+  const nowAt = today && !hasLive ? (nowIdx < 0 ? day.cards.length : nowIdx) : -1;
 
   return (
     <div ref={ref} className="day-page chat-wall h-full w-full shrink-0 overflow-y-auto">
@@ -83,6 +89,7 @@ export const DayFeed = forwardRef<
               {nowAt === i && now.min > (prevEnd ?? 0) && <NowLine min={now.min} />}
               <div id={`card-${card.id}`} className="animate-bubble scroll-mt-28" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                 <Bubble card={card} rel={relOf(card, now)} first={first} onOpenTicket={onOpenTicket} />
+                <PhotoStrip photos={photos.get(card.id) ?? []} onOpen={(i) => onOpenPhoto(photos.get(card.id) ?? [], i)} />
               </div>
             </Fragment>
           );

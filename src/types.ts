@@ -6,6 +6,16 @@ export type Row = Record<string, string>;
 export interface SheetData {
   updatedAt: string;
   sheets: Record<string, Row[]>;
+  /** Foto di folder Drive, urut jam diambil. */
+  photos: Photo[];
+}
+
+export interface Photo {
+  /** ID file Google Drive. */
+  id: string;
+  name: string;
+  /** Jam diambil, waktu Eropa Tengah: "2026-11-06T08:35". */
+  t: string;
 }
 
 export type Kategori = 'transport' | 'hotel' | 'makan' | 'wisata' | 'belanja' | 'acara';
@@ -90,6 +100,10 @@ export type TicketCardData = CardBase & {
   details: Detail[];
   ticket?: TicketInfo;
   pass?: PassInfo;
+  /** Link Maps stasiun asal: kolom gmaps baris ini. */
+  fromNav?: string;
+  /** Link Maps stasiun tujuan: kolom gmaps baris rundown berikutnya yang tempatnya sama dengan tujuan. */
+  toNav?: string;
 };
 export type KeyCardData = CardBase & { kind: 'key'; hotel: HotelInfo; action: string };
 export type ReceiptCardData = CardBase & { kind: 'receipt' };
@@ -116,4 +130,15 @@ export interface Day {
 export interface Rel {
   text: string;
   kind: 'done' | 'live' | 'future';
+  /** Hanya untuk kind 'live': sejauh mana kegiatan berjalan. */
+  progress?: Progress;
+}
+
+export interface Progress {
+  /** 0..1 */
+  pct: number;
+  /** Sisa menit sampai selesai. */
+  left: number;
+  /** Jam selesai (menit sejak tengah malam, bisa > 1440). */
+  end: number;
 }

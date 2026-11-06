@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { MODE } from '../lib/mode';
-import { fmtTime } from '../lib/time';
-import type { Card, Rel, TicketCardData } from '../types';
+import { fmtDuration, fmtTime, parseTime } from '../lib/time';
+import type { Card, Leg, Rel, TicketCardData } from '../types';
 import { Icon, type IconName } from './Icon';
 
 /**
@@ -112,6 +112,25 @@ function LiveTag() {
   );
 }
 
+/** Progress bar di bawah bubble yang sedang berlangsung, berjalan sampai jam selesai. */
+function LiveProgress({ rel }: { rel: Rel }) {
+  const p = rel.progress;
+  if (!p) return null;
+  const pct = Math.round(p.pct * 100);
+  return (
+    <div className="mt-2 pl-11" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Progres kegiatan">
+      <div className="h-2 w-full max-w-[340px] overflow-hidden rounded-full bg-accent/15">
+        <div className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear" style={{ width: `${Math.max(pct, 3)}%` }} />
+      </div>
+      <div className="mt-1 grid max-w-[340px] grid-cols-3 font-mono text-[11px] font-semibold text-accent">
+        <span>{fmtTime(p.end - p.left)}</span>
+        <span className="whitespace-nowrap text-center">{p.left > 0 ? `${fmtDuration(p.left)} lagi` : 'selesai'}</span>
+        <span className="text-right">{fmtTime(p.end)}</span>
+      </div>
+    </div>
+  );
+}
+
 function Todo({ text }: { text: string }) {
   if (!text) return null;
   return (
@@ -129,6 +148,10 @@ function Shell({
   first,
   className,
   narrow,
+  summary,
+  actions,
+  noBar,
+  minutes,
   children,
 }: {
   rel: Rel;
@@ -136,9 +159,20 @@ function Shell({
   first: boolean;
   className: string;
   narrow?: boolean;
+  /** Isi bubble saat tertutup: judul saja. */
+  summary: ReactNode;
+  /** Tombol aksi, hanya tampil saat bubble dibuka. */
+  actions?: ReactNode;
+  /** Jangan tampilkan progress bar mendatar di bawah bubble (perjalanan punya bar tegak sendiri). */
+  noBar?: boolean;
+  /** Lama kegiatan (menit), menentukan lebar bubble saat tertutup. */
+  minutes: number | null;
+  /** Detail lengkap, tampil saat bubble dibuka. */
   children: ReactNode;
 }) {
   const live = rel.kind === 'live';
+  // Semua bubble tertutup (judul saja); yang sedang berlangsung langsung terbuka.
+  const [open, setOpen] = useState(live);
   return (
     <div className={`flex flex-col ${narrow ? 'pr-14' : 'pr-6'} ${rel.kind === 'done' ? 'opacity-70' : ''}`}>
       {live && (
@@ -152,10 +186,58 @@ function Shell({
           className={`relative min-w-0 max-w-[340px] overflow-hidden rounded-[20px] shadow-card ${first ? 'rounded-tl-[6px]' : ''} ${className} ${
             live ? 'ring-[3px] ring-accent ring-offset-2 ring-offset-wall' : ''
           }`}
+          style={open ? undefined : { flex: 'none', width: summaryWidth(minutes), maxWidth: '100%' }}
         >
-          {children}
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setOpen((v) => !v);
+              }
+            }}
+            className="cursor-pointer select-none"
+          >
+            {open ? children : summary}
+          </div>
+          {open && actions}
         </div>
       </div>
+      {live && !(noBar && open) && <LiveProgress rel={rel} />}
+    </div>
+  );
+}
+
+/** Lebar bubble tertutup mengikuti lama kegiatan: 15 menit sempit, 4 jam ke atas selebar penuh. */
+function summaryWidth(min: number | null): number {
+  const m = min ?? 30;
+  return Math.round(Math.min(340, Math.max(170, 110 + Math.sqrt(m) * 15)));
+}
+
+/** Baris judul saat bubble tertutup: judul, jam, dan panah buka. */
+function Summary({ card, rel, title, light, small, alert }: { card: Card; rel: Rel; title: ReactNode; light?: boolean; small?: boolean; alert?: boolean }) {
+  return (
+    <div className={`flex items-start gap-2 ${small ? 'px-3.5 py-2' : 'px-4 py-2.5'}`}>
+      <p className={`min-w-0 flex-1 truncate font-bold leading-snug ${small ? 'text-[15px]' : 'text-base'}`}>{title}</p>
+      {alert && (
+        <span className="shrink-0 text-[#EA580C]" aria-label="Perlu ditindaklanjuti">
+          <Icon name="alert" size={14} stroke={2.4} />
+        </span>
+      )}
+      <span className={`flex shrink-0 items-center gap-1 font-mono text-[12px] font-semibold ${light ? 'text-white/75' : 'text-muted'}`}>
+        {fmtTime(card.startMin)}
+        {rel.kind === 'done' && (
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" aria-label="Selesai" className={light ? 'text-white' : 'text-[#2563EB]'}>
+            <path d="M1 6l3 3 6-7M6 9l1 0.5L14 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      <span className={`shrink-0 ${light ? 'text-white/70' : 'text-muted'}`} aria-hidden="true">
+        <Icon name="chevronDown" size={16} stroke={2.4} />
+      </span>
     </div>
   );
 }
@@ -194,30 +276,185 @@ function Actions({ items, tone }: { items: Action[]; tone: 'light' | 'dark' | 'w
 
 /* ---------- Kereta, bus, pesawat ---------- */
 
+function mapsOf(place: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
+}
+
+interface Stop {
+  time: string;
+  name: string;
+  platform?: string;
+  nav?: string;
+}
+
+/** Halte/stasiun berurutan: asal, tempat transit, tujuan. Antar halte: kereta yang dinaiki. */
+function stopsOf(card: TicketCardData): { stops: Stop[]; legs: Leg[] } {
+  const legs = card.ticket?.legs ?? [];
+  if (legs.length > 1) {
+    const stops: Stop[] = [{ time: legs[0].dep, name: legs[0].from, platform: legs[0].platform, nav: card.fromNav }];
+    legs.forEach((l, i) => {
+      const next = legs[i + 1];
+      stops.push({ time: l.arr, name: l.to, platform: next?.platform ?? l.arrPlatform, nav: next ? undefined : card.toNav });
+    });
+    return { stops, legs };
+  }
+  const end = card.endMin != null ? fmtTime(card.endMin) : '';
+  return {
+    stops: [
+      { time: fmtTime(card.startMin), name: card.from, platform: legs[0]?.platform, nav: card.fromNav },
+      { time: end, name: card.to, platform: legs[0]?.arrPlatform, nav: card.toNav },
+    ],
+    legs,
+  };
+}
+
+/** Link dari sheet kalau ada; kalau tidak, cari nama tempatnya di Google Maps. */
+/** Warna rute: 'dark' di bubble kendaraan (latar berwarna), 'walk' di bubble jalan kaki (latar hijau muda). */
+const ROUTE_TONE = {
+  dark: {
+    track: 'bg-white/25',
+    fill: 'bg-white',
+    dot: 'border-white',
+    dotOn: 'bg-white',
+    soft: 'text-white/70',
+    mid: 'text-white/80',
+    pill: 'bg-white/15 text-white active:bg-white/25',
+  },
+  walk: {
+    track: 'bg-trail/20',
+    fill: 'bg-trail',
+    dot: 'border-trail',
+    dotOn: 'bg-trail',
+    soft: 'text-soft',
+    mid: 'text-soft',
+    pill: 'bg-trail/15 text-trail active:bg-trail/25',
+  },
+} as const;
+type RouteTone = keyof typeof ROUTE_TONE;
+
+function MapsLink({ place, nav, tone = 'dark' }: { place: string; nav?: string; tone?: RouteTone }) {
+  if (!place && !nav) return null;
+  return (
+    <a
+      href={nav || mapsOf(place)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${ROUTE_TONE[tone].pill}`}
+    >
+      <Icon name="pin" size={12} stroke={2.4} />
+      Maps
+    </a>
+  );
+}
+
+/** Lama satu kereta/bus dalam menit, dari jam berangkat dan tiba. */
+function legDur(l: Leg | undefined): number | null {
+  if (!l) return null;
+  const a = parseTime(l.dep);
+  const b = parseTime(l.arr);
+  if (a == null || b == null) return null;
+  return b >= a ? b - a : b + 1440 - a;
+}
+
+/** Panjang garis antar halte mengikuti lama perjalanan: jalan kaki pendek, kereta jauh dan pesawat panjang. */
+function gapPx(min: number | null): number {
+  if (!min) return 28;
+  return Math.round(Math.min(160, Math.max(20, 14 + Math.sqrt(min) * 7)));
+}
+
+/** Rute tegak dari atas (asal) ke bawah (tujuan). Garisnya terisi sesuai progres perjalanan. */
+function Route({ card, rel, dur, bg, tone = 'dark' }: { card: TicketCardData; rel: Rel; dur: number | null; bg: string; tone?: RouteTone }) {
+  const t = ROUTE_TONE[tone];
+  const { stops, legs } = stopsOf(card);
+  const pct = rel.kind === 'done' ? 100 : rel.progress ? Math.round(rel.progress.pct * 100) : 0;
+  const multi = legs.length > 1;
+  return (
+    <div className="relative mt-3">
+      {/* Garis rute: dari titik asal sampai titik tujuan */}
+      <div className={`absolute bottom-[9px] left-[51px] top-[9px] w-[3px] -translate-x-1/2 overflow-hidden rounded-full ${t.track}`} aria-hidden="true">
+        <div className={`w-full rounded-full ${t.fill} transition-[height] duration-1000 ease-linear`} style={{ height: `${pct}%` }} />
+      </div>
+      <ol className="flex flex-col">
+        {stops.map((st, i) => {
+          const edge = i === 0 || i === stops.length - 1;
+          const passed = rel.kind === 'done' || (rel.kind === 'live' && (i === 0 || pct >= (i / (stops.length - 1)) * 100));
+          const leg = multi ? legs[i] : undefined;
+          let transfer = '';
+          if (multi && i > 0 && i < stops.length - 1) {
+            const a = parseTime(legs[i - 1].arr);
+            const b = parseTime(legs[i].dep);
+            if (a != null && b != null && b >= a) transfer = `pindah ${fmtDur(b - a)}`;
+          }
+          return (
+            <li key={i}>
+              <div className="grid grid-cols-[40px_22px_minmax(0,1fr)] items-start">
+                <span className={`pt-px text-right font-mono text-[13px] font-bold ${edge ? '' : t.mid}`}>{st.time}</span>
+                <span className="flex justify-center pt-[3px]">
+                  <span
+                    className={`relative z-[1] rounded-full border-[3px] ${edge ? 'h-[14px] w-[14px]' : 'h-[11px] w-[11px]'} ${
+                      passed ? `${t.dot} ${t.dotOn}` : `${t.dot} ${bg}`
+                    }`}
+                  />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-start gap-2">
+                    <span className={`min-w-0 flex-1 leading-tight ${edge ? 'font-display text-[17px] font-bold' : 'text-[14px] font-semibold'}`}>{st.name}</span>
+                    <MapsLink place={st.name} nav={st.nav} tone={tone} />
+                  </div>
+                  {(st.platform || transfer) && (
+                    <span className={`mt-0.5 block text-[12px] ${t.soft}`}>
+                      {[st.platform && `Peron ${st.platform}`, transfer].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {i < stops.length - 1 && (
+                <div className="grid grid-cols-[40px_22px_minmax(0,1fr)] items-center" style={{ minHeight: gapPx(multi ? legDur(legs[i]) : dur) }}>
+                  <span />
+                  <span />
+                  <span className={`py-1 font-mono text-[11px] font-semibold ${t.soft}`}>
+                    {multi
+                      ? [leg?.train, leg?.seat].filter(Boolean).join(' · ')
+                      : dur
+                        ? fmtDur(dur)
+                        : ''}
+                  </span>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function RideBubble({ card, rel, sender, first, onOpenTicket }: { card: TicketCardData; rel: Rel; sender: Sender; first: boolean; onOpenTicket: (c: TicketCardData) => void }) {
   const icon = card.icon === 'walk' ? 'train' : card.icon;
   const m = MODE[icon];
   const dur = durOf(card);
   const actions: Action[] = [];
   if (card.ticket || card.pass) actions.push({ label: icon === 'plane' ? 'Boarding pass' : 'Lihat tiket', icon: 'ticket', onClick: () => onOpenTicket(card) });
-  if (card.nav) actions.push({ label: 'Navigasi', icon: 'navigate', href: card.nav });
 
   return (
-    <Shell rel={rel} sender={sender} first={first} className={`flex-1 text-white ${m.head}`}>
-      <div className="px-4 pb-2.5 pt-3">
+    <Shell
+      minutes={durOf(card)}
+      rel={rel}
+      sender={sender}
+      first={first}
+      className={`flex-1 text-white ${m.head}`}
+      summary={<Summary card={card} rel={rel} light alert={!!card.status} title={m.label} />}
+      actions={<Actions items={actions} tone="dark" />}
+      noBar
+    >
+      <div className="px-4 pb-3 pt-3">
         <span className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] ${m.eyebrow}`}>
           {m.label}
           {card.mode.toLowerCase() !== m.label.toLowerCase() && <span className="normal-case tracking-normal">· {card.mode}</span>}
         </span>
 
-        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-x-2">
-          <span className="line-clamp-2 font-display text-[19px] font-bold leading-tight">{card.from}</span>
-          <span className="flex flex-col items-center pt-1 text-white/80">
-            <Icon name="arrowRight" size={18} stroke={2.4} />
-            {dur && <span className="mt-0.5 whitespace-nowrap font-mono text-[10px] font-semibold">{fmtDur(dur)}</span>}
-          </span>
-          <span className="line-clamp-2 text-right font-display text-[19px] font-bold leading-tight">{card.to}</span>
-        </div>
+        <Route card={card} rel={rel} dur={dur} bg={m.head} />
 
         <p className="mt-2 text-sm font-semibold text-white/90">{card.title}</p>
         {card.note && <p className="mt-0.5 line-clamp-3 text-[13px] leading-snug text-white/75">{card.note}</p>}
@@ -236,11 +473,7 @@ function RideBubble({ card, rel, sender, first, onOpenTicket }: { card: TicketCa
             <Todo text={card.status} />
           </div>
         )}
-        <div className="mt-1.5">
-          <Stamp card={card} rel={rel} light />
-        </div>
       </div>
-      <Actions items={actions} tone="dark" />
     </Shell>
   );
 }
@@ -250,34 +483,39 @@ function RideBubble({ card, rel, sender, first, onOpenTicket }: { card: TicketCa
 function WalkBubble({ card, rel, sender, first, onOpenTicket }: { card: TicketCardData; rel: Rel; sender: Sender; first: boolean; onOpenTicket: (c: TicketCardData) => void }) {
   const dur = durOf(card);
   const actions: Action[] = [];
-  if (card.nav) actions.push({ label: 'Tunjukkan jalan', icon: 'navigate', href: card.nav });
   if (card.ticket || card.pass) actions.push({ label: 'Tiket', icon: 'ticket', onClick: () => onOpenTicket(card) });
 
   return (
-    <Shell rel={rel} sender={sender} first={first} narrow className="border border-dashed border-trail/40 bg-[#DCF2DC] text-ink">
-      <div className="px-3.5 pb-2 pt-2.5">
-        <p className="text-[15px] leading-snug">
-          <span>
-            <b className="text-trail">{dur ? `${fmtDur(dur)} jalan kaki` : 'Jalan kaki'}</b>
-            {card.to && (
-              <>
-                {' '}ke <b>{card.to}</b>
-              </>
-            )}
-          </span>
-        </p>
-        {card.title && !card.title.toLowerCase().includes(card.to.toLowerCase()) && <p className="mt-1 text-[13px] text-soft">{card.title}</p>}
+    <Shell
+      minutes={durOf(card)}
+      rel={rel}
+      sender={sender}
+      first={first}
+      narrow
+      className="border border-dashed border-trail/40 bg-[#DCF2DC] text-ink"
+      summary={
+        <Summary
+          card={card}
+          rel={rel}
+          small
+          alert={!!card.status}
+          title={<span className="text-trail">Jalan kaki</span>}
+        />
+      }
+      actions={<Actions items={actions} tone="walk" />}
+      noBar
+    >
+      <div className="px-3.5 pb-3 pt-2.5">
+        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-trail">Jalan kaki</span>
+        <Route card={card} rel={rel} dur={dur} bg="bg-[#DCF2DC]" tone="walk" />
+        {card.title && <p className="mt-2 text-[14px] font-semibold">{card.title}</p>}
         {card.note && <p className="mt-1 text-[13px] leading-snug text-soft">{card.note}</p>}
         {card.status && (
           <div className="flex">
             <Todo text={card.status} />
           </div>
         )}
-        <div className="mt-1">
-          <Stamp card={card} rel={rel} />
-        </div>
       </div>
-      <Actions items={actions} tone="walk" />
     </Shell>
   );
 }
@@ -311,7 +549,23 @@ function PlaceBubble({ card, rel, sender, first }: { card: Exclude<Card, TicketC
   const shell = invite ? 'bg-ink text-white' : unbooked ? 'border-2 border-dashed border-[#F59E0B] bg-[#FFF7ED] text-ink' : 'bg-white text-ink';
 
   return (
-    <Shell rel={rel} sender={sender} first={first} className={`flex-1 ${shell}`}>
+    <Shell
+      minutes={durOf(card)}
+      rel={rel}
+      sender={sender}
+      first={first}
+      className={`flex-1 ${shell}`}
+      summary={
+        <Summary
+          card={card}
+          rel={rel}
+          light={invite}
+          alert={!!card.status || !!unbooked}
+          title={<span className={invite ? 'font-display text-gold' : ''}>{p.label}</span>}
+        />
+      }
+      actions={<Actions items={actions} tone={invite ? 'dark' : 'light'} />}
+    >
       {photo && (
         <div className="h-40 w-full bg-postal">
           <img src={photo} alt={card.title} loading="lazy" className="h-full w-full object-cover" />
@@ -355,7 +609,7 @@ function PlaceBubble({ card, rel, sender, first }: { card: Exclude<Card, TicketC
             <p className={`mb-1 text-[11px] font-bold uppercase tracking-[0.08em] ${p.color}`}>Sejarah {dest.name}</p>
             <p className="whitespace-pre-line">{dest.history}</p>
             {dest.photoSource && (
-              <a href={dest.photoSource} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block text-xs underline opacity-70">
+              <a href={dest.photoSource} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="mt-1.5 inline-block text-xs underline opacity-70">
                 Sumber foto
               </a>
             )}
@@ -366,7 +620,6 @@ function PlaceBubble({ card, rel, sender, first }: { card: Exclude<Card, TicketC
           <Stamp card={card} rel={rel} light={invite} />
         </div>
       </div>
-      <Actions items={actions} tone={invite ? 'dark' : 'light'} />
     </Shell>
   );
 }

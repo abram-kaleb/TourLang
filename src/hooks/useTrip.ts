@@ -3,10 +3,11 @@ import { REFRESH_MINUTES } from '../config';
 import { buildTrip } from '../lib/build';
 import { AuthError, clearKey, fetchSheet, getKey, loadCache, setKey } from '../lib/sheet';
 import { getNow, type Now } from '../lib/time';
-import type { Day, SheetData } from '../types';
+import type { Day, Photo, SheetData } from '../types';
 
 export interface TripState {
   days: Day[];
+  photos: Photo[];
   now: Now;
   loading: boolean;
   /** Pesan kalau data terakhir gagal diambil (app tetap memakai data simpanan). */
@@ -71,5 +72,5 @@ export function useTrip(): TripState {
     [refresh],
   );
 
-  return { days, now, loading, error, updatedAt: data?.updatedAt, needKey, refresh: () => void refresh(), submitKey };
+  return { days, photos: data?.photos ?? [], now, loading, error, updatedAt: data?.updatedAt, needKey, refresh: () => void refresh(), submitKey };
 }

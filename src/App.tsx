@@ -3,7 +3,7 @@ import { ChatView } from './components/ChatView';
 import { useTrip } from './hooks/useTrip';
 
 export default function App() {
-  const { days, now, loading, error, updatedAt, needKey, refresh, submitKey } = useTrip();
+  const { days, photos, now, loading, error, updatedAt, needKey, refresh, submitKey } = useTrip();
 
   if (needKey) return <KeyForm loading={loading} error={error} onSubmit={submitKey} />;
 
@@ -25,7 +25,7 @@ export default function App() {
     );
   }
 
-  return <ChatView days={days} now={now} updatedAt={updatedAt} error={error} loading={loading} onRefresh={refresh} />;
+  return <ChatView days={days} photos={photos} now={now} updatedAt={updatedAt} error={error} loading={loading} onRefresh={refresh} />;
 }
 
 /** Form kode akses. Kode disimpan di HP ini saja, tidak ikut di file app. */

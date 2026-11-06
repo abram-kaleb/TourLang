@@ -150,6 +150,60 @@ function routeOf(cities: string[]): string {
   return `${cap(seq[0])} → ${cap(seq[seq.length - 1])}`;
 }
 
+/** Nama tempat disederhanakan supaya "Hamburg Hbf" cocok dengan "Hamburg Hauptbahnhof". */
+function normPlace(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/hauptbahnhof/g, 'hbf')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function samePlace(a: string, b: string): boolean {
+  const x = normPlace(a);
+  const y = normPlace(b);
+  return x.length >= 3 && y.length >= 3 && (x.includes(y) || y.includes(x));
+}
+
+/** Isi tempat yang tertulis di link gmaps (parameter query). */
+function mapsQuery(url: string): string {
+  try {
+    return (new URL(url).searchParams.get('query') ?? '').replace(/\+/g, ' ');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Link Maps asal dan tujuan untuk kartu perjalanan.
+ * Asal: kolom gmaps baris itu sendiri. Tujuan: gmaps dari baris rundown berikutnya (sampai 6 baris)
+ * yang tempat atau isi link-nya sama dengan tujuan.
+ */
+function linkDestinations(byDay: Map<string, Card[]>) {
+  const all = [...byDay.keys()]
+    .sort()
+    .flatMap((k) => [...(byDay.get(k) ?? [])].sort((a, b) => a.startMin - b.startMin));
+  all.forEach((c, i) => {
+    if (c.kind !== 'ticket') return;
+    if (c.icon === 'walk') {
+      // Jalan kaki: baris ini biasanya ditulis di tempat tujuan. Asalnya tempat kegiatan sebelumnya.
+      const prev = all[i - 1];
+      if (prev?.place && !samePlace(prev.place, c.to)) {
+        c.from = prev.place;
+        c.fromNav = prev.nav;
+      }
+      c.toNav = c.nav;
+      return;
+    }
+    c.fromNav = c.nav;
+    for (const n of all.slice(i + 1, i + 7)) {
+      if (n.nav && n.nav !== c.nav && (samePlace(n.place, c.to) || samePlace(mapsQuery(n.nav), c.to))) {
+        c.toNav = n.nav;
+        break;
+      }
+    }
+  });
+}
+
 export function buildTrip(data: SheetData): Day[] {
   const rundown = data.sheets['rundown'] ?? [];
 
@@ -212,6 +266,8 @@ export function buildTrip(data: SheetData): Day[] {
 
     byDay.set(dayKey, [...(byDay.get(dayKey) ?? []), card]);
   });
+
+  linkDestinations(byDay);
 
   return [...byDay.keys()].sort().map((key) => {
     const cards = (byDay.get(key) ?? []).sort((a, b) => a.startMin - b.startMin);
